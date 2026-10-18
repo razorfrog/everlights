@@ -8,6 +8,7 @@ Environment:
   DATA_DIR          where schedules and the log live (default ./data)
   PORT              HTTP port (default 8080)
   REASSERT_MINUTES  re-send after each transition, minutes (default 2,10)
+  SCHEDULER         set to "off" to serve the app without running schedules
 """
 
 import hashlib
@@ -358,7 +359,10 @@ def main():
     ctl = make_app()
     Handler.ctl = ctl
     port = int(os.environ.get("PORT", "8080"))
-    threading.Thread(target=ctl.run_forever, daemon=True).start()
+    if os.environ.get("SCHEDULER", "on") != "off":
+        threading.Thread(target=ctl.run_forever, daemon=True).start()
+    else:
+        ctl.log("info", "Scheduler is off (SCHEDULER=off); only manual control works")
     ctl.log("info", f"Started; bridge {ctl.host}, listening on :{port}")
     ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()
 

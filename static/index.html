@@ -866,13 +866,15 @@ async function renderLog() {
     : `<div class="empty" style="padding:4px 0">Nothing yet.</div>`;
 }
 // --- reliability history ---
-let histDays = 7, hist = null;
+let histDays = [1, 7, 30].includes(+new URLSearchParams(location.search).get("days"))
+  ? +new URLSearchParams(location.search).get("days") : 7, hist = null;
 async function loadHistory() {
   try { hist = await api(`/api/history?days=${histDays}`); } catch { return; }
   renderReliability();
 }
 function renderReliability() {
   if (!hist) return;
+  document.querySelectorAll("#histRange .chip").forEach(c => c.setAttribute("aria-pressed", +c.dataset.d === histDays));
   const st = hist.stats;
   const stat = (k, v, bad) => `<div class="stat"><div class="k">${esc(k)}</div><div class="v ${bad ? "bad" : ""}">${esc(v)}</div></div>`;
   const pct = n => st.scheduled ? `${Math.round(100 * n / st.scheduled)}%` : "—";
@@ -1048,7 +1050,10 @@ async function refreshState() {
 }
 async function init() {
   fillSelects();
-  try { const t = localStorage.getItem("tab"); if (t) showTab(t); } catch {}
+  // A link like /#schedules opens that tab; otherwise reopen the last one used.
+  const fromHash = location.hash.slice(1);
+  if (["patterns", "schedules", "log", "health"].includes(fromHash)) showTab(fromHash);
+  else try { const t = localStorage.getItem("tab"); if (t) showTab(t); } catch {}
   await refreshState();
   try {
     await loadPatterns();
@@ -1057,6 +1062,7 @@ async function init() {
   S.schedules = await api("/api/schedules").catch(() => []);
   renderChips(); renderGrid(); renderSchedules(); renderNow(); renderGoLinks(); loadSettings();
   setInterval(refreshState, 20000);
+  if (location.hash === "#new-pattern") openMaker(null);
 }
 init();
 </script>

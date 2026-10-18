@@ -55,8 +55,10 @@ Run the tests with `python3 -m unittest discover -s tests`.
 | `PORT` | `8080` | HTTP port |
 | `DATA_DIR` | `./data` | Schedules, patterns, logs and history |
 | `REASSERT_MINUTES` | `2,10` | Re-send after each scheduled change |
+| `SCHEDULER` | `on` | `off` serves the app without running schedules (for testing) |
 
-The ntfy topic is set in the app's Health tab.
+The ntfy topic is set in the app's Health tab. Links like `/#schedules` or
+`/#health` open a tab directly.
 
 ## Running it on a NAS or server
 
@@ -113,18 +115,22 @@ The bridge keeps its schedules and patterns on a microSD card (FAT32): `events/`
 with **"SD card error"**, the card's filesystem is probably damaged, often from losing
 power mid-write. What worked for me:
 
-1. Back up the whole card first.
-2. Repair it (on a Mac: `diskutil repairVolume`), then delete the broken schedule file.
-3. **Remove macOS's hidden folders before putting the card back.** macOS adds
-   `.Spotlight-V100` and `.fseventsd` the moment a card mounts. With them on the card,
-   my bridge booted but failed to list schedules and patterns ("Failed to get array
-   stream"); with them removed, it worked. I haven't fully proven they were the cause,
-   but removing them is harmless:
+1. Back up the whole card first. Your computer may write to it as soon as it mounts.
+2. **Repair the original card in place** (on a Mac: `diskutil repairVolume`), then
+   delete the broken schedule file.
+3. Remove the hidden folders macOS adds before putting it back:
 
    ```bash
    sudo mdutil -i off "/Volumes/NO NAME"
    sudo rm -rf "/Volumes/NO NAME/.Spotlight-V100" "/Volumes/NO NAME/.fseventsd"
    ```
+
+**Don't count on copying the files to a new card.** I tried a freshly formatted card
+with an exact copy of the files, first with 4 KB and then with 32 KB clusters like the
+original, and with the macOS folders removed. The bridge booted from it and read
+`zones.json`, but couldn't list its schedules or patterns ("Failed to get array
+stream"). The original card, repaired, worked fine. My guess is the bridge's firmware
+doesn't like folders created by macOS, but I haven't pinned it down.
 
 ## Credits
 
