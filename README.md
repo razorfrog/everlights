@@ -9,6 +9,10 @@ bridge fires each scheduled change once and never checks whether the roofline
 controller heard it. This app does the scheduling itself, confirms every change, and
 retries until it sticks.
 
+![Patterns, the pattern maker and schedules on an iPhone](docs/screenshots/overview.jpg)
+
+It's built for phones first: add it to your home screen and it opens like an app.
+
 > Not affiliated with or endorsed by EverLights. It uses the bridge's undocumented
 > local API, which could change with any firmware update.
 
@@ -24,8 +28,9 @@ retries until it sticks.
 - **Reliability history:** signal strength (RSSI/SNR) over time, bridge and zone
   restarts, and how every scheduled change went: first try, after retries, gave up,
   or already done by the bridge's own schedule.
-- **Alerts** via [ntfy](https://ntfy.sh) when a change gives up, needs retries, the
-  bridge stops answering, or something restarts.
+- **Push alerts** via [ntfy](https://ntfy.sh): get a notification on your phone when a
+  scheduled change gives up or only worked after retries, when the bridge stops
+  answering (and when it's back), or when the bridge or controller restarts.
 - **Siri Shortcuts links:** `/go/on`, `/go/off`, `/go/play?name=Candy%20Corn`.
 - **Home screen web app** for iOS.
 - **CLI** (`everlights.py`) for scripting and poking at the bridge.
