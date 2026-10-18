@@ -1,0 +1,1064 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#111014">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Everlights">
+<link rel="icon" type="image/png" href="/static/favicon.png">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<link rel="manifest" href="/static/manifest.webmanifest">
+<title>Everlights</title>
+<style>
+:root {
+  --bg: #111014; --panel: #1b1a20; --panel-2: #24232b; --line: #2f2e37;
+  --text: #f2efe9; --muted: #9b97a3; --accent: #ffb547; --accent-ink: #1d1406;
+  --ok: #63d297; --warn: #f0c04a; --err: #ff6b6b;
+  --radius: 14px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); }
+body {
+  font: 15px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  padding: env(safe-area-inset-top) 0 calc(72px + env(safe-area-inset-bottom));
+}
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+.wrap { max-width: 920px; margin: 0 auto; padding: 0 16px; }
+
+header { padding: 20px 0 8px; }
+/* iOS blurs a band at the top of home screen web apps; start the header below it.
+   Normal Safari doesn't do this. */
+html.standalone header { padding-top: 28px; }
+.top { display: flex; align-items: center; gap: 10px; }
+h1 { font-size: 22px; margin: 0; letter-spacing: -.01em; flex: 1; }
+.pill { font-size: 12px; padding: 3px 9px; border-radius: 99px; background: var(--panel-2); color: var(--muted); white-space: nowrap; }
+.pill.ok { color: var(--ok); } .pill.err { color: var(--err); }
+
+.now { margin-top: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; }
+.now-row { display: flex; align-items: center; gap: 12px; }
+.now-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.now-name { font-size: 18px; font-weight: 600; margin: 2px 0 10px; }
+.now-meta { font-size: 13px; color: var(--muted); margin-top: 10px; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.now-meta b { color: var(--text); font-weight: 500; }
+.btn { border: 1px solid var(--line); background: var(--panel-2); border-radius: 10px; padding: 8px 14px; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.btn.ghost { background: transparent; }
+.btn.danger { color: var(--err); }
+.btn:disabled { opacity: .5; cursor: default; }
+
+/* LED strip preview */
+.strip {
+  height: 14px; border-radius: 7px; background-repeat: repeat-x;
+  -webkit-mask: radial-gradient(circle at 7px 7px, #000 4.2px, transparent 5px) 0 0 / 14px 14px repeat-x;
+          mask: radial-gradient(circle at 7px 7px, #000 4.2px, transparent 5px) 0 0 / 14px 14px repeat-x;
+}
+.strip.off { background: #2a2930 !important; }
+.strip.chase { animation: chase var(--dur, 3s) linear infinite; }
+.strip.reverseChase { animation: chase var(--dur, 3s) linear infinite reverse; }
+.strip.fade { animation: fade var(--dur, 3s) ease-in-out infinite; }
+.strip.twinkle, .strip.random { animation: twinkle 1.6s steps(4) infinite; }
+.strip.blink, .strip.strobe, .strip.lightning { animation: blink var(--dur, 1s) steps(2) infinite; }
+@keyframes chase { to { background-position-x: var(--len, 140px); } }
+@keyframes fade { 50% { filter: brightness(.35); } }
+@keyframes twinkle { 25% { filter: brightness(.6); } 50% { filter: brightness(1.15); } 75% { filter: brightness(.8); } }
+@keyframes blink { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .strip { animation: none !important; } }
+
+nav.tabs {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+  background: rgba(17,16,20,.92); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom);
+}
+nav.tabs .wrap { display: flex; }
+nav.tabs button { flex: 1; background: none; border: 0; padding: 12px 0 14px; color: var(--muted); font-size: 13px; font-weight: 500; }
+nav.tabs button[aria-selected="true"] { color: var(--accent); }
+
+section { display: none; padding-top: 18px; }
+section.active { display: block; }
+h2 { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin: 22px 0 10px; font-weight: 600; }
+h2:first-child { margin-top: 0; }
+
+.search { width: 100%; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.chips { display: flex; gap: 6px; overflow-x: auto; padding: 10px 0 2px; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chip { flex: none; border: 1px solid var(--line); background: transparent; border-radius: 99px; padding: 5px 12px; font-size: 13px; color: var(--muted); }
+.chip[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-top: 12px; }
+.card { position: relative; text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 12px 12px; min-width: 0; }
+.card:hover { border-color: #46444f; }
+.card.playing { border-color: var(--accent); }
+.card .name { font-weight: 600; padding-right: 56px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .sub { font-size: 12px; color: var(--muted); margin: 2px 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.star { position: absolute; top: 8px; right: 8px; background: none; border: 0; padding: 4px; color: #55535d; font-size: 17px; line-height: 1; }
+.star.on { color: var(--accent); }
+.card .edit { position: absolute; top: 8px; right: 34px; background: none; border: 0; padding: 4px; color: #6b6975; font-size: 15px; line-height: 1; }
+.card .edit:hover, .star:hover { color: var(--text); }
+.pat-top { display: flex; gap: 8px; }
+.pat-top .search { flex: 1; min-width: 0; }
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.sw { width: 36px; height: 36px; border-radius: 50%; border: 2px solid rgba(255,255,255,.14); padding: 0; flex: none; }
+.sw.sel { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sw.add { background: transparent; border-style: dashed; color: var(--muted); font-size: 20px; line-height: 1; }
+.palette .sw { width: 28px; height: 28px; }
+.sw-tools { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.sw-tools .btn { padding: 6px 10px; font-size: 13px; }
+.range-row { display: flex; align-items: center; gap: 10px; }
+.range-row input[type=range] { flex: 1; accent-color: var(--accent); min-width: 0; }
+.range-row output { width: 44px; text-align: right; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.fx-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 10px; align-items: center; margin-bottom: 8px; }
+.hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.empty { color: var(--muted); padding: 20px 0; }
+
+.list { display: flex; flex-direction: column; gap: 10px; }
+.row { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
+.row-head { display: flex; align-items: center; gap: 10px; }
+.row-title { flex: 1; font-weight: 600; min-width: 0; }
+.row-sub { font-size: 13px; color: var(--muted); margin-top: 3px; }
+.row .strip { margin-top: 10px; }
+.row-actions { display: flex; gap: 8px; margin-top: 10px; }
+.row.disabled { opacity: .55; }
+.switch { position: relative; width: 42px; height: 24px; flex: none; }
+.switch input { opacity: 0; width: 100%; height: 100%; margin: 0; position: absolute; cursor: pointer; }
+.switch span { position: absolute; inset: 0; background: #3a3842; border-radius: 99px; transition: .15s; pointer-events: none; }
+.switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: .15s; }
+.switch input:checked + span { background: var(--ok); }
+.switch input:checked + span::after { transform: translateX(18px); }
+
+.timeline { display: flex; flex-direction: column; }
+.tl { display: flex; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.tl:last-child { border-bottom: 0; }
+.tl time { color: var(--muted); width: 150px; flex: none; }
+.dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 7px; flex: none; }
+
+.log { font-size: 13px; }
+.log .tl time { font-variant-numeric: tabular-nums; }
+@media (max-width: 480px) { .tl { font-size: 13px; gap: 10px; } .tl time { width: 128px; white-space: nowrap; } }
+.lv-info .dot { background: var(--ok); } .lv-warn .dot { background: var(--warn); } .lv-error .dot { background: var(--err); }
+
+.health { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.stat { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
+.stat .k { font-size: 12px; color: var(--muted); }
+.stat .v { font-size: 18px; font-weight: 600; margin-top: 2px; }
+.stat .v.bad { color: var(--warn); }
+.chart { position: relative; margin-top: 12px; }
+.chart svg { display: block; width: 100%; height: 190px; overflow: visible; }
+.chart .grid line { stroke: var(--line); stroke-width: 1; }
+.chart .ref line { stroke: #4a4855; stroke-width: 1; stroke-dasharray: 3 4; }
+.chart text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; paint-order: stroke; stroke: var(--panel); stroke-width: 4px; stroke-linejoin: round; }
+.chart .band { fill: var(--accent); opacity: .16; }
+.chart .ln { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart .reboot { stroke: var(--warn); stroke-width: 2; stroke-linecap: round; }
+.chart .gap { fill: #55535d; }
+.chart .xh { stroke: var(--muted); stroke-width: 1; }
+.chart .dotx { fill: var(--accent); stroke: var(--panel); stroke-width: 2; }
+.tip { position: absolute; pointer-events: none; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
+  padding: 6px 9px; font-size: 12px; white-space: nowrap; transform: translate(-50%, -110%); display: none; z-index: 2; }
+.tip b { font-weight: 600; }
+.outcome { font-size: 12px; color: var(--muted); margin-left: auto; padding-left: 8px; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+.outcome .dot { margin-top: 0; }
+details.data summary { cursor: pointer; color: var(--muted); font-size: 13px; margin-top: 10px; }
+details.data table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; font-variant-numeric: tabular-nums; }
+details.data td, details.data th { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+.note { font-size: 13px; color: var(--muted); margin-top: 10px; }
+
+dialog {
+  background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 18px; padding: 0;
+  width: min(520px, calc(100vw - 24px)); max-height: calc(var(--vvh, 100dvh) - 24px); overflow: hidden;
+}
+dialog[open] { display: flex; }
+dialog::backdrop { background: rgba(0,0,0,.6); }
+dialog form { display: flex; flex-direction: column; width: 100%; min-height: 0; }
+dialog h3 { margin: 0; padding: 16px 18px 12px; font-size: 18px; outline: none; border-bottom: 1px solid var(--line); }
+.dlg-body { padding: 16px 18px 4px; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; min-height: 0; flex: 1; }
+@media (max-width: 560px) {
+  dialog { width: 100vw; max-width: 100vw; margin: 0; position: fixed; left: 0; right: 0;
+    top: auto; bottom: var(--vvb, 0px); border-radius: 18px 18px 0 0; border-bottom: 0;
+    max-height: calc(var(--vvh, 100dvh) - 12px); }
+}
+.field { margin-bottom: 14px; }
+.field > label, .field > .lbl { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: .05em; }
+.field input[type=text], .field input[type=number], .field input[type=time], .field select {
+  width: 100%; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px;
+}
+.inline { display: flex; gap: 8px; align-items: center; }
+.inline > * { min-width: 0; }
+.inline select { flex: 1.2; } .inline input { flex: 1; }
+.days { display: flex; gap: 5px; }
+.days label { flex: 1; }
+.days input { display: none; }
+.days span { display: block; text-align: center; padding: 7px 0; border: 1px solid var(--line); border-radius: 9px; font-size: 13px; color: var(--muted); cursor: pointer; }
+.days input:checked + span { background: var(--text); color: var(--bg); border-color: var(--text); }
+.field > label.check { text-transform: none; letter-spacing: 0; color: var(--text); font-size: 14px; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 14px; margin-bottom: 8px; }
+.dlg-actions { display: flex; gap: 8px; justify-content: flex-end; padding: 12px 18px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--panel); }
+.dlg-actions .spacer { flex: 1; }
+.err-msg { color: var(--err); font-size: 13px; min-height: 1em; }
+
+.toast { position: fixed; left: 50%; bottom: calc(80px + env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(20px); opacity: 0; background: var(--text); color: var(--bg); padding: 9px 16px; border-radius: 99px; font-size: 14px; transition: .2s; pointer-events: none; z-index: 10; max-width: calc(100vw - 32px); }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.bad { background: var(--err); color: #fff; }
+</style>
+</head>
+<body>
+<header class="wrap">
+  <div class="top">
+    <h1>Everlights</h1>
+    <span class="pill" id="bridgePill">Connecting…</span>
+  </div>
+  <div class="now">
+    <div class="now-row">
+      <div style="flex:1;min-width:0">
+        <div class="now-label">Now playing</div>
+        <div class="now-name" id="nowName">—</div>
+      </div>
+      <button class="btn" id="offBtn">Turn off</button>
+    </div>
+    <div class="strip off" id="nowStrip"></div>
+    <div class="now-meta" id="nowMeta"></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section id="tab-patterns" class="active">
+    <div class="pat-top">
+      <input class="search" id="search" type="search" placeholder="Search patterns" autocomplete="off">
+      <button class="btn primary" id="newPat">New pattern</button>
+    </div>
+    <div class="chips" id="chips"></div>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <section id="tab-schedules">
+    <div class="top">
+      <h2 style="flex:1;margin:0">Schedules</h2>
+      <button class="btn primary" id="addSched">Add schedule</button>
+    </div>
+    <p class="note">The first schedule that matches wins. Between schedules the lights turn off. Each change is confirmed with the bridge, retried if needed, and re-sent a couple of times in case the radio drops it.</p>
+    <div class="list" id="schedList"></div>
+    <h2>Coming up</h2>
+    <div class="row"><div class="timeline" id="upcoming"></div></div>
+  </section>
+
+  <section id="tab-log">
+    <h2>Activity</h2>
+    <div class="row"><div class="timeline log" id="log"></div></div>
+  </section>
+
+  <section id="tab-health">
+    <div class="top">
+      <h2 style="flex:1;margin:0">Reliability</h2>
+      <div class="chips" id="histRange" style="padding:0">
+        <button class="chip" data-d="1" aria-pressed="false">24h</button>
+        <button class="chip" data-d="7" aria-pressed="true">7 days</button>
+        <button class="chip" data-d="30" aria-pressed="false">30 days</button>
+      </div>
+    </div>
+    <div class="health" id="relStats" style="margin-top:12px"></div>
+    <div class="row" style="margin-top:10px">
+      <div class="row-head"><div class="row-title">Roofline signal (RSSI, dBm)</div></div>
+      <div class="row-sub">Higher is better. The line is the typical reading, the shaded band its low-to-high range. Orange ticks mark restarts of the bridge or roofline controller; gray marks show when the bridge didn't answer.</div>
+      <div class="chart" id="sigChart"><div class="tip" id="sigTip"></div></div>
+      <details class="data"><summary>Show data</summary><div id="sigTable"></div></details>
+    </div>
+    <h2>Scheduled changes</h2>
+    <div class="row"><div class="timeline" id="changeList"></div></div>
+
+    <h2>Bridge</h2>
+    <div class="health" id="bridgeStats"></div>
+    <h2>Zones</h2>
+    <div class="health" id="zoneStats"></div>
+    <p class="note">RSSI above about −90 dBm is comfortable. Near −100 the radio link between the bridge and the roofline controller is marginal, and commands can get lost.</p>
+
+    <h2>Alerts</h2>
+    <div class="row">
+      <div class="field" style="margin-bottom:10px"><label for="ntfyUrl">ntfy topic URL</label>
+        <input type="text" id="ntfyUrl" class="search" placeholder="https://ntfy.sh/your-topic" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done"></div>
+      <div class="row-actions" style="margin-top:0">
+        <button class="btn primary" id="ntfySave">Save</button>
+        <button class="btn" id="ntfyTest">Send test</button>
+      </div>
+      <p class="note">You'll get a push when a scheduled change gives up, succeeds only after retries, the bridge stops answering for 10 minutes (and when it's back), or the bridge or roofline controller restarts. Anyone who knows a public ntfy.sh topic name can read it, so use a hard-to-guess name.</p>
+    </div>
+
+    <h2>Siri &amp; Shortcuts</h2>
+    <div class="row">
+      <p class="note" style="margin-top:0">In the Shortcuts app, add a <b>Get Contents of URL</b> action with one of these links, then <b>Show Result</b> so Siri reads back what happened. Name the shortcut what you want to say, like "Roofline off". These only work on your home Wi-Fi.</p>
+      <div class="timeline" id="goLinks"></div>
+    </div>
+    <p class="note" id="version" style="text-align:center;margin:24px 0 8px"></p>
+  </section>
+</main>
+
+<nav class="tabs" role="tablist">
+  <div class="wrap">
+    <button role="tab" data-tab="patterns" aria-selected="true">Patterns</button>
+    <button role="tab" data-tab="schedules" aria-selected="false">Schedules</button>
+    <button role="tab" data-tab="log" aria-selected="false">Log</button>
+    <button role="tab" data-tab="health" aria-selected="false">Health</button>
+  </div>
+</nav>
+
+<dialog id="dlg">
+  <form method="dialog" id="schedForm">
+    <h3 id="dlgTitle" tabindex="-1">New schedule</h3>
+    <div class="dlg-body">
+    <div class="field"><label for="fName">Name</label><input type="text" id="fName" required maxlength="80" enterkeyhint="done" autocomplete="off"></div>
+    <div class="field"><label for="fSeq">Pattern</label><select id="fSeq" required></select>
+      <div class="strip off" id="fStrip" style="margin-top:8px"></div></div>
+    <div class="field"><span class="lbl">Turn on</span>
+      <div class="inline"><select id="fStartKind"></select><input type="number" id="fStartOff" step="5" placeholder="± min"><input type="time" id="fStartTime"></div></div>
+    <div class="field"><span class="lbl">Turn off</span>
+      <div class="inline"><select id="fEndKind"></select><input type="number" id="fEndOff" step="5" placeholder="± min"><input type="time" id="fEndTime"></div></div>
+    <div class="field"><span class="lbl">Days</span><div class="days" id="fDays"></div></div>
+    <div class="field">
+      <label class="check"><input type="checkbox" id="fSeason"> Only between these dates each year</label>
+      <div class="inline" id="seasonRow"><select id="fFromM"></select><select id="fFromD"></select><span style="flex:none;color:var(--muted)">to</span><select id="fToM"></select><select id="fToD"></select></div>
+    </div>
+    <label class="check"><input type="checkbox" id="fEnabled" checked> Enabled</label>
+    <div class="err-msg" id="fErr"></div>
+    </div>
+    <div class="dlg-actions">
+      <button type="button" class="btn ghost danger" id="fDelete">Delete</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn ghost" id="fCancel">Cancel</button>
+      <button type="submit" class="btn primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="mk">
+  <form method="dialog" id="mkForm">
+    <h3 id="mkTitle" tabindex="-1">New pattern</h3>
+    <div class="dlg-body">
+      <div class="field"><label for="mName">Name</label><input type="text" id="mName" maxlength="60" enterkeyhint="done" autocomplete="off" placeholder="My pattern"></div>
+      <div class="field">
+        <div class="strip" id="mStrip"></div>
+        <div class="inline" style="margin-top:10px">
+          <span class="hint" style="flex:1;margin:0">The preview is approximate. Send it to see the real thing.</span>
+          <button type="button" class="btn" id="mTry" style="flex:none">Try on lights</button>
+        </div>
+      </div>
+      <div class="field"><span class="lbl">Colors, in order along the roofline</span>
+        <div class="swatches" id="mSwatches"></div>
+        <div class="sw-tools" id="mTools">
+          <button type="button" class="btn" data-t="color">Change color</button>
+          <button type="button" class="btn" data-t="left" aria-label="Move left">◀</button>
+          <button type="button" class="btn" data-t="right" aria-label="Move right">▶</button>
+          <button type="button" class="btn" data-t="dup">Duplicate</button>
+          <button type="button" class="btn danger" data-t="remove">Remove</button>
+        </div>
+        <div class="range-row" style="margin-top:12px">
+          <span style="font-size:13px;color:var(--muted);flex:none">White LEDs</span>
+          <input type="range" id="mW" min="0" max="255" step="5" value="0" aria-label="White LEDs for the selected dot">
+          <output id="mWV">0</output>
+        </div>
+        <div class="hint">Your strip has separate white LEDs. This sets them for the selected dot, on top of its color, like the warm slider in the EverLights app.</div>
+        <input type="color" id="mPicker" style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none">
+      </div>
+      <div class="field"><span class="lbl">Quick colors</span>
+        <div class="swatches palette" id="mPalette"></div>
+        <div class="hint">Tap one to set the selected dot. The first one uses the strip's white LEDs, the cleanest white it can make.</div>
+      </div>
+      <div class="field"><span class="lbl">Brightness</span>
+        <div class="range-row"><input type="range" id="mBright" min="5" max="100" step="5" value="100"><output id="mBrightV">100%</output></div>
+        <div class="hint">There's no brightness control on the bridge, so this darkens the colors themselves.</div>
+      </div>
+      <div class="field"><span class="lbl">Effects (speed 0–255)</span>
+        <div class="fx-row"><select id="mFx1"></select><div class="range-row"><input type="range" id="mSp1" min="0" max="255" value="128"><output id="mSp1V">128</output></div></div>
+        <div class="fx-row"><select id="mFx2"></select><div class="range-row"><input type="range" id="mSp2" min="0" max="255" value="128"><output id="mSp2V">128</output></div></div>
+      </div>
+      <div class="err-msg" id="mErr"></div>
+    </div>
+    <div class="dlg-actions">
+      <button type="button" class="btn ghost danger" id="mDelete">Delete</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn ghost" id="mCancel">Cancel</button>
+      <button type="submit" class="btn primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const PAGE_VERSION = "__PAGE_VERSION__";
+// iOS home screen apps set navigator.standalone; other browsers use the display-mode query.
+const STANDALONE = navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
+if (STANDALONE) document.documentElement.classList.add("standalone");
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const KINDS = [["sunset", "Sunset"], ["sunrise", "Sunrise"], ["time", "Clock time"]];
+const S = { patterns: [], byId: {}, schedules: [], favorites: [], state: null, filter: "Favorites", tz: undefined };
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { headers: { "Content-Type": "application/json" }, ...opts,
+    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || r.statusText);
+  return data;
+}
+
+let toastTimer;
+function toast(msg, bad) {
+  const t = $("#toast");
+  t.textContent = msg; t.className = "toast show" + (bad ? " bad" : "");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.className = "toast", 2600);
+}
+
+// --- colors ---
+// Patterns are RRGGBB, or RRGGBBWW where WW drives the strip's separate white LEDs.
+function cssColor(hex) {
+  const v = i => parseInt(hex.slice(i, i + 2), 16);
+  if (hex.length !== 8) return `#${hex}`;
+  const w = v(6);
+  return `rgb(${Math.min(255, v(0) + w)}, ${Math.min(255, v(2) + w * .93)}, ${Math.min(255, v(4) + w * .8)})`;
+}
+
+// --- strip preview ---
+function paintStrip(el, seq) {
+  const pattern = (seq && seq.pattern) || [];
+  el.className = "strip";
+  el.style.removeProperty("--len"); el.style.removeProperty("--dur");
+  if (!pattern.length) { el.classList.add("off"); el.style.backgroundImage = ""; return; }
+  const n = pattern.length, step = 100 / n;
+  const stops = pattern.map((c, i) => `${cssColor(c)} ${i * step}% ${(i + 1) * step}%`).join(", ");
+  el.style.backgroundImage = `linear-gradient(90deg, ${stops})`;
+  el.style.backgroundSize = `${n * 14}px 100%`;
+  el.style.setProperty("--len", `${n * 14}px`);
+  const fx = (seq.effects || [])[0];
+  if (fx) {
+    el.classList.add(fx.effectType);
+    const speed = Math.max(0, Math.min(255, fx.value ?? 128));
+    el.style.setProperty("--dur", `${(6.5 - speed / 46).toFixed(2)}s`);
+  }
+}
+const fxLabel = seq => (seq.effects || []).map(e => e.effectType.replace(/([A-Z])/g, " $1").toLowerCase()).join(", ") || "static";
+const isMine = seq => !!seq && String(seq.id).startsWith("mine-");
+const ORDER = { Mine: 0, Personal: 1 };
+const groupsOf = seq => (seq.groups || []).map(g => g.replace(/^EverLights\//, "").replace(/\/$/, "")).filter(Boolean);
+
+// --- time formatting ---
+const fmtTime = iso => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", timeZone: S.tz });
+function fmtWhen(iso) {
+  const d = new Date(iso), now = new Date();
+  const day = x => new Date(x).toLocaleDateString("en-CA", { timeZone: S.tz });
+  const diff = Math.round((new Date(day(d)) - new Date(day(now))) / 864e5);
+  const label = diff === 0 ? "Today" : diff === 1 ? "Tomorrow"
+    : d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", timeZone: S.tz });
+  return `${label} ${fmtTime(iso)}`;
+}
+function anchorText(a) {
+  if (a.kind === "time") {
+    const [h, m] = a.time.split(":").map(Number);
+    return new Date(2000, 0, 1, h, m).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  }
+  const name = a.kind === "sunset" ? "Sunset" : "Sunrise";
+  return a.offset ? `${name} ${a.offset > 0 ? "+" : "−"}${Math.abs(a.offset)}m` : name;
+}
+function daysText(days) {
+  if (!days || !days.length || days.length === 7) return "Every day";
+  const k = days.join();
+  if (k === "0,1,2,3,4") return "Weekdays";
+  if (k === "5,6") return "Weekends";
+  return days.map(d => DAYS[d]).join(", ");
+}
+const mdText = md => { const [m, d] = md.split("-").map(Number); return `${MONTHS[m - 1]} ${d}`; };
+
+// --- now / header ---
+function renderNow() {
+  const st = S.state;
+  const pill = $("#bridgePill");
+  if (!st) return;
+  if (st.bridgeError) {
+    pill.textContent = "Bridge unreachable"; pill.className = "pill err";
+    $("#nowName").textContent = "Unknown"; $("#nowMeta").innerHTML = `<span>${esc(st.bridgeError)}</span>`;
+    return;
+  }
+  const weak = (st.zones || []).some(z => z.health !== "ok");
+  pill.textContent = weak ? "Weak signal" : "Bridge OK";
+  pill.className = "pill " + (weak ? "" : "ok");
+  if (weak) pill.style.color = "var(--warn)"; else pill.style.color = "";
+  const cur = st.current;
+  const on = cur && cur.pattern.length;
+  $("#nowName").textContent = !on ? "Off" : cur.match ? cur.match.alias : "Custom colors";
+  paintStrip($("#nowStrip"), cur);
+  $("#offBtn").disabled = !on;
+  const meta = [];
+  if (st.desired) meta.push(`Schedule wants: <b>${st.desired.on ? esc(st.desired.name) : "off"}</b>`);
+  const next = (st.upcoming || [])[0];
+  if (next) meta.push(`Next: <b>${next.action === "on" ? esc(next.name) : "Off"}</b> ${esc(fmtWhen(next.at))}`);
+  const p = st.scheduler && st.scheduler.pending;
+  if (p && !p.confirmed && p.attempts) meta.push(`<span style="color:var(--warn)">Retrying ${esc(p.name || "off")} (try ${p.attempts + 1})</span>`);
+  $("#nowMeta").innerHTML = meta.map(m => `<span>${m}</span>`).join("");
+  document.querySelectorAll(".card").forEach(c => c.classList.toggle("playing", !!(cur && cur.match && c.dataset.id === cur.match.id)));
+}
+
+// --- patterns ---
+function renderChips() {
+  const groups = new Set();
+  S.patterns.forEach(p => groupsOf(p).forEach(g => groups.add(g)));
+  const names = ["Favorites", "All", ...[...groups].sort((a, b) => (ORDER[a] ?? 9) - (ORDER[b] ?? 9) || a.localeCompare(b))];
+  if (!names.includes(S.filter)) S.filter = "All";
+  $("#chips").innerHTML = names.map(n => `<button class="chip" aria-pressed="${n === S.filter}" data-g="${esc(n)}">${esc(n)}${n === "Favorites" ? ` · ${S.favorites.length}` : ""}</button>`).join("");
+}
+function renderGrid() {
+  const q = $("#search").value.trim().toLowerCase();
+  let list = S.patterns;
+  if (q) list = list.filter(p => (p.alias || "").toLowerCase().includes(q));
+  else if (S.filter === "Favorites") list = list.filter(p => S.favorites.includes(p.id));
+  else if (S.filter !== "All") list = list.filter(p => groupsOf(p).includes(S.filter));
+  const grid = $("#grid");
+  if (!list.length) {
+    grid.innerHTML = `<div class="empty">${S.filter === "Favorites" && !q ? "No favorites yet. Tap ☆ on a pattern to pin it here." : "No patterns match."}</div>`;
+    return;
+  }
+  grid.innerHTML = list.map(p => `
+    <div class="card" role="button" tabindex="0" data-id="${esc(p.id)}">
+      <div class="name">${esc(p.alias)}</div>
+      <div class="sub">${esc(groupsOf(p)[0] || "")}${groupsOf(p).length ? " · " : ""}${esc(fxLabel(p))}</div>
+      <div class="strip"></div>
+      <button class="edit" aria-label="${isMine(p) ? "Edit" : "Copy and edit"}" title="${isMine(p) ? "Edit" : "Copy and edit"}">✎</button>
+      <button class="star ${S.favorites.includes(p.id) ? "on" : ""}" aria-label="Favorite">${S.favorites.includes(p.id) ? "★" : "☆"}</button>
+    </div>`).join("");
+  grid.querySelectorAll(".card").forEach(c => paintStrip($(".strip", c), S.byId[c.dataset.id]));
+  renderNow();
+}
+async function play(id) {
+  const seq = S.byId[id];
+  toast(`Sending ${seq.alias}…`);
+  try {
+    const r = await api("/api/play", { method: "POST", body: { sequenceId: id } });
+    toast(r.ok ? `Playing ${seq.alias}` : `Sent ${seq.alias}, but the bridge didn't confirm`, !r.ok);
+  } catch (e) { toast(e.message, true); }
+  refreshState();
+}
+$("#grid").addEventListener("click", async e => {
+  const card = e.target.closest(".card"); if (!card) return;
+  const id = card.dataset.id;
+  if (e.target.closest(".edit")) return openMaker(S.byId[id], !isMine(S.byId[id]));
+  if (e.target.closest(".star")) {
+    const on = !S.favorites.includes(id);
+    S.favorites = await api("/api/favorites", { method: "POST", body: { sequenceId: id, on } });
+    renderChips(); renderGrid(); return;
+  }
+  play(id);
+});
+$("#grid").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.classList.contains("card")) play(e.target.dataset.id); });
+$("#chips").addEventListener("click", e => {
+  const b = e.target.closest(".chip"); if (!b) return;
+  S.filter = b.dataset.g; $("#search").value = ""; renderChips(); renderGrid();
+});
+$("#search").addEventListener("input", renderGrid);
+$("#offBtn").addEventListener("click", async () => {
+  try { const r = await api("/api/off", { method: "POST" }); toast(r.ok ? "Lights off" : "Sent off, but the bridge didn't confirm", !r.ok); }
+  catch (e) { toast(e.message, true); }
+  refreshState();
+});
+
+// --- schedules ---
+function renderSchedules() {
+  const el = $("#schedList");
+  if (!S.schedules.length) { el.innerHTML = `<div class="empty">No schedules yet. The bridge's own schedules keep running until you add one here.</div>`; return; }
+  el.innerHTML = S.schedules.map((s, i) => {
+    const seq = S.byId[s.sequenceId];
+    const season = s.dateFrom ? ` · ${mdText(s.dateFrom)} – ${mdText(s.dateTo)}` : "";
+    return `<div class="row ${s.enabled ? "" : "disabled"}" data-i="${i}">
+      <div class="row-head">
+        <div class="row-title">${esc(s.name)}</div>
+        <label class="switch" aria-label="Enabled"><input type="checkbox" data-act="toggle" ${s.enabled ? "checked" : ""}><span></span></label>
+      </div>
+      <div class="row-sub">${esc(seq ? seq.alias : "Missing pattern")} · ${esc(anchorText(s.start))} → ${esc(anchorText(s.end))}</div>
+      <div class="row-sub">${esc(daysText(s.days))}${esc(season)}</div>
+      <div class="strip"></div>
+      <div class="row-actions">
+        <button class="btn" data-act="edit">Edit</button>
+        ${i > 0 ? `<button class="btn ghost" data-act="up" aria-label="Move up">↑ Priority</button>` : ""}
+      </div>
+    </div>`;
+  }).join("");
+  el.querySelectorAll(".row").forEach(r => paintStrip($(".strip", r), S.byId[S.schedules[r.dataset.i].sequenceId]));
+}
+function renderUpcoming() {
+  const up = (S.state && S.state.upcoming) || [];
+  $("#upcoming").innerHTML = up.length ? up.map(u => `<div class="tl"><time>${esc(fmtWhen(u.at))}</time>
+    <span class="dot" style="background:${u.action === "on" ? "var(--accent)" : "#55535d"}"></span>
+    <span>${u.action === "on" ? `${esc(u.name)} on` : "Off"}</span></div>`).join("")
+    : `<div class="empty" style="padding:4px 0">Nothing scheduled in the next three weeks.</div>`;
+}
+async function saveSchedules(list) {
+  S.schedules = await api("/api/schedules", { method: "PUT", body: list });
+  renderSchedules(); refreshState();
+}
+$("#schedList").addEventListener("click", e => {
+  const act = e.target.dataset.act, row = e.target.closest(".row"); if (!act || !row) return;
+  const i = +row.dataset.i, list = S.schedules.map(s => ({ ...s }));
+  if (act === "edit") return openDialog(i);
+  if (act === "up") { [list[i - 1], list[i]] = [list[i], list[i - 1]]; saveSchedules(list).catch(err => toast(err.message, true)); }
+});
+$("#schedList").addEventListener("change", e => {
+  if (e.target.dataset.act !== "toggle") return;
+  const i = +e.target.closest(".row").dataset.i;
+  const list = S.schedules.map(s => ({ ...s })); list[i].enabled = e.target.checked;
+  saveSchedules(list).catch(err => toast(err.message, true));
+});
+
+// --- dialog ---
+let editing = -1;
+function fillSelects() {
+  const opts = KINDS.map(([v, l]) => `<option value="${v}">${l}</option>`).join("");
+  $("#fStartKind").innerHTML = opts; $("#fEndKind").innerHTML = opts;
+  const m = MONTHS.map((n, i) => `<option value="${String(i + 1).padStart(2, "0")}">${n}</option>`).join("");
+  const d = Array.from({ length: 31 }, (_, i) => `<option value="${String(i + 1).padStart(2, "0")}">${i + 1}</option>`).join("");
+  ["#fFromM", "#fToM"].forEach(s => $(s).innerHTML = m);
+  ["#fFromD", "#fToD"].forEach(s => $(s).innerHTML = d);
+  $("#fDays").innerHTML = DAYS.map((n, i) => `<label><input type="checkbox" value="${i}"><span>${n[0]}${n[1]}</span></label>`).join("");
+}
+function fillPatternSelect(selected) {
+  const groups = {};
+  S.patterns.forEach(p => (groups[groupsOf(p)[0] || "Other"] ||= []).push(p));
+  const favs = S.patterns.filter(p => S.favorites.includes(p.id));
+  const og = (label, ps) => `<optgroup label="${esc(label)}">${ps.map(p => `<option value="${esc(p.id)}">${esc(p.alias)}</option>`).join("")}</optgroup>`;
+  $("#fSeq").innerHTML = (favs.length ? og("Favorites", favs) : "") +
+    Object.keys(groups).sort().map(g => og(g, groups[g])).join("");
+  if (selected) $("#fSeq").value = selected;
+  paintStrip($("#fStrip"), S.byId[$("#fSeq").value]);
+}
+function syncAnchor(which) {
+  const kind = $(`#f${which}Kind`).value;
+  $(`#f${which}Off`).style.display = kind === "time" ? "none" : "";
+  $(`#f${which}Time`).style.display = kind === "time" ? "" : "none";
+}
+function setAnchor(which, a) {
+  $(`#f${which}Kind`).value = a.kind;
+  $(`#f${which}Off`).value = a.kind === "time" ? "" : (a.offset || 0);
+  $(`#f${which}Time`).value = a.kind === "time" ? a.time : "";
+  syncAnchor(which);
+}
+function getAnchor(which) {
+  const kind = $(`#f${which}Kind`).value;
+  if (kind === "time") {
+    const t = $(`#f${which}Time`).value;
+    if (!t) throw new Error(`Pick a ${which === "Start" ? "start" : "stop"} time`);
+    return { kind, time: t };
+  }
+  return { kind, offset: parseInt($(`#f${which}Off`).value || "0", 10) };
+}
+function syncSeason() { $("#seasonRow").style.display = $("#fSeason").checked ? "" : "none"; }
+function openDialog(i) {
+  editing = i;
+  const s = i >= 0 ? S.schedules[i] : {
+    name: "", enabled: true, sequenceId: (S.byId[S.favorites[0]] || S.patterns[0] || {}).id,
+    start: { kind: "sunset", offset: 0 }, end: { kind: "time", time: "22:30" }, days: [], dateFrom: null, dateTo: null,
+  };
+  $("#dlgTitle").textContent = i >= 0 ? "Edit schedule" : "New schedule";
+  $("#fName").value = s.name;
+  fillPatternSelect(s.sequenceId);
+  setAnchor("Start", s.start); setAnchor("End", s.end);
+  $("#fDays").querySelectorAll("input").forEach(c => c.checked = !s.days.length || s.days.includes(+c.value));
+  $("#fSeason").checked = !!s.dateFrom;
+  const [fm, fd] = (s.dateFrom || "10-01").split("-"), [tm, td] = (s.dateTo || "10-31").split("-");
+  $("#fFromM").value = fm; $("#fFromD").value = fd; $("#fToM").value = tm; $("#fToD").value = td;
+  syncSeason();
+  $("#fEnabled").checked = s.enabled;
+  $("#fDelete").style.display = i >= 0 ? "" : "none";
+  $("#fErr").textContent = "";
+  $("#dlg").showModal();
+  $("#dlgTitle").focus();  // don't open the keyboard on phones
+  $(".dlg-body").scrollTop = 0;
+}
+$("#fSeq").addEventListener("change", () => {
+  const seq = S.byId[$("#fSeq").value];
+  paintStrip($("#fStrip"), seq);
+  if (!$("#fName").value && seq) $("#fName").value = seq.alias;
+});
+$("#fStartKind").addEventListener("change", () => syncAnchor("Start"));
+$("#fEndKind").addEventListener("change", () => syncAnchor("End"));
+$("#fSeason").addEventListener("change", syncSeason);
+$("#fCancel").addEventListener("click", () => $("#dlg").close());
+// Keep the sheet above the on-screen keyboard (iOS doesn't resize the layout viewport).
+if (window.visualViewport) {
+  const vv = window.visualViewport, root = document.documentElement.style;
+  const sync = () => {
+    root.setProperty("--vvh", `${vv.height}px`);
+    root.setProperty("--vvb", `${Math.max(0, window.innerHeight - vv.height - vv.offsetTop)}px`);
+  };
+  vv.addEventListener("resize", sync); vv.addEventListener("scroll", sync); sync();
+}
+$("#fName").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); e.target.blur(); } });
+$("#fDelete").addEventListener("click", async () => {
+  if (!confirm(`Delete "${S.schedules[editing].name}"?`)) return;
+  try { await saveSchedules(S.schedules.filter((_, i) => i !== editing)); $("#dlg").close(); }
+  catch (e) { $("#fErr").textContent = e.message; }
+});
+$("#schedForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  try {
+    const days = [...$("#fDays").querySelectorAll("input:checked")].map(c => +c.value);
+    if (!days.length) throw new Error("Pick at least one day");
+    const seqId = $("#fSeq").value;
+    const s = {
+      ...(editing >= 0 ? S.schedules[editing] : {}),
+      name: $("#fName").value.trim() || (S.byId[seqId] || {}).alias,
+      sequenceId: seqId, enabled: $("#fEnabled").checked,
+      start: getAnchor("Start"), end: getAnchor("End"),
+      days: days.length === 7 ? [] : days,
+      dateFrom: $("#fSeason").checked ? `${$("#fFromM").value}-${$("#fFromD").value}` : null,
+      dateTo: $("#fSeason").checked ? `${$("#fToM").value}-${$("#fToD").value}` : null,
+    };
+    const list = S.schedules.map(x => ({ ...x }));
+    if (editing >= 0) list[editing] = s; else list.push(s);
+    await saveSchedules(list);
+    $("#dlg").close();
+    toast("Schedule saved");
+  } catch (err) { $("#fErr").textContent = err.message; }
+});
+$("#addSched").addEventListener("click", () => openDialog(-1));
+
+// --- pattern maker ---
+const EFFECTS = ["chase", "reverseChase", "fade", "twinkle", "random", "blink", "strobe", "lightning",
+  "bars", "gradient", "melt", "pingPong", "wipe"];
+const PALETTE = ["000000FF", "FFB46B", "FFFFFF", "FF0000", "FF3C00", "FF8C00", "FFD000", "00FF00", "00FF9C",
+  "00B4FF", "0000FF", "7A00FF", "FF00B4", "000000"];
+const M = { colors: [], sel: 0, id: null };
+const fxName = f => f.replace(/([A-Z])/g, " $1").replace(/^./, c => c.toUpperCase());
+
+async function loadPatterns() {
+  S.patterns = (await api("/api/patterns")).sort((a, b) =>
+    (isMine(b) - isMine(a)) || (a.alias || "").localeCompare(b.alias || ""));
+  S.byId = Object.fromEntries(S.patterns.map(p => [p.id, p]));
+}
+function scaleHex(hex, pct) {
+  if (pct >= 100) return hex;
+  return [0, 2, 4, 6].slice(0, hex.length / 2).map(i => Math.round(parseInt(hex.slice(i, i + 2), 16) * pct / 100)
+    .toString(16).padStart(2, "0")).join("").toUpperCase();
+}
+function makerSeq() {
+  const pct = +$("#mBright").value;
+  const effects = [1, 2].map(n => ({ effectType: $(`#mFx${n}`).value, value: +$(`#mSp${n}`).value }))
+    .filter(e => e.effectType);
+  const anyW = M.colors.some(c => c.length === 8 && c.slice(6) !== "00");
+  const colors = M.colors.map(c => anyW ? c.padEnd(8, "0") : c.slice(0, 6));
+  return { pattern: colors.map(c => scaleHex(c, pct)), effects };
+}
+function renderMaker() {
+  M.sel = Math.max(0, Math.min(M.sel, M.colors.length - 1));
+  $("#mSwatches").innerHTML = M.colors.map((c, i) =>
+    `<button type="button" class="sw ${i === M.sel ? "sel" : ""}" data-i="${i}" style="background:${cssColor(c)}" aria-label="Color ${i + 1}, #${c}"></button>`
+  ).join("") + `<button type="button" class="sw add" data-add="1" aria-label="Add color">+</button>`;
+  const tools = $("#mTools");
+  $('[data-t="left"]', tools).disabled = M.sel === 0;
+  $('[data-t="right"]', tools).disabled = M.sel >= M.colors.length - 1;
+  $('[data-t="remove"]', tools).disabled = M.colors.length <= 1;
+  const w = parseInt(M.colors[M.sel].slice(6) || "00", 16);
+  $("#mW").value = w; $("#mWV").textContent = w;
+  $("#mBrightV").textContent = `${$("#mBright").value}%`;
+  [1, 2].forEach(n => {
+    $(`#mSp${n}V`).textContent = $(`#mSp${n}`).value;
+    $(`#mSp${n}`).disabled = !$(`#mFx${n}`).value;
+  });
+  paintStrip($("#mStrip"), makerSeq());
+}
+function openMaker(base, asCopy) {
+  const fxOpts = `<option value="">No effect</option>` + EFFECTS.map(f => `<option value="${f}">${fxName(f)}</option>`).join("");
+  $("#mFx1").innerHTML = fxOpts; $("#mFx2").innerHTML = fxOpts;
+  M.colors = base ? base.pattern.map(c => c.toUpperCase()) : ["FF6600", "FF6600", "7A00FF"];
+  M.sel = 0;
+  M.id = base && !asCopy && isMine(base) ? base.id : null;
+  $("#mName").value = !base ? "" : asCopy ? `${base.alias} (mine)` : base.alias;
+  const fx = (base && base.effects) || [];
+  [1, 2].forEach(n => {
+    const e = fx[n - 1];
+    $(`#mFx${n}`).value = e && EFFECTS.includes(e.effectType) ? e.effectType : "";
+    $(`#mSp${n}`).value = e ? e.value : 128;
+  });
+  $("#mBright").value = 100;
+  $("#mkTitle").textContent = M.id ? "Edit pattern" : base ? "Copy pattern" : "New pattern";
+  $("#mDelete").style.display = M.id ? "" : "none";
+  $("#mErr").textContent = "";
+  renderMaker();
+  $("#mk").showModal();
+  $("#mkTitle").focus();
+  $("#mk .dlg-body").scrollTop = 0;
+}
+$("#newPat").addEventListener("click", () => openMaker(null));
+$("#mSwatches").addEventListener("click", e => {
+  const b = e.target.closest(".sw"); if (!b) return;
+  if (b.dataset.add) { M.colors.splice(M.sel + 1, 0, M.colors[M.sel] || "FFB46B"); M.sel++; }
+  else if (+b.dataset.i === M.sel) return pickColor();
+  else M.sel = +b.dataset.i;
+  renderMaker();
+});
+function pickColor() {
+  const pk = $("#mPicker");
+  pk.value = `#${M.colors[M.sel].slice(0, 6).toLowerCase()}`;
+  pk.showPicker ? pk.showPicker() : pk.click();
+}
+$("#mPicker").addEventListener("input", e => {
+  const old = M.colors[M.sel];
+  M.colors[M.sel] = e.target.value.slice(1).toUpperCase() + (old.length === 8 ? old.slice(6) : "");
+  renderMaker();
+});
+$("#mTools").addEventListener("click", e => {
+  const t = e.target.closest("[data-t]"); if (!t) return;
+  const c = M.colors, i = M.sel;
+  if (t.dataset.t === "color") return pickColor();
+  if (t.dataset.t === "left" && i > 0) { [c[i - 1], c[i]] = [c[i], c[i - 1]]; M.sel--; }
+  if (t.dataset.t === "right" && i < c.length - 1) { [c[i + 1], c[i]] = [c[i], c[i + 1]]; M.sel++; }
+  if (t.dataset.t === "dup" && c.length < 100) { c.splice(i + 1, 0, c[i]); M.sel++; }
+  if (t.dataset.t === "remove" && c.length > 1) c.splice(i, 1);
+  renderMaker();
+});
+$("#mPalette").innerHTML = PALETTE.map(c => `<button type="button" class="sw" data-c="${c}" style="background:${cssColor(c)}"
+  aria-label="${c.length === 8 ? "White LEDs" : "#" + c}" title="${c.length === 8 ? "White LEDs only" : "#" + c}"></button>`).join("");
+$("#mPalette").addEventListener("click", e => {
+  const b = e.target.closest("[data-c]"); if (!b) return;
+  M.colors[M.sel] = b.dataset.c; renderMaker();
+});
+$("#mW").addEventListener("input", e => {
+  M.colors[M.sel] = M.colors[M.sel].slice(0, 6) + (+e.target.value).toString(16).padStart(2, "0").toUpperCase();
+  renderMaker();
+});
+["#mBright", "#mFx1", "#mFx2", "#mSp1", "#mSp2"].forEach(sel => $(sel).addEventListener("input", renderMaker));
+$("#mName").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); e.target.blur(); } });
+$("#mCancel").addEventListener("click", () => $("#mk").close());
+$("#mTry").addEventListener("click", async () => {
+  const seq = makerSeq(), name = $("#mName").value.trim() || "pattern preview";
+  toast("Sending preview…");
+  try {
+    const r = await api("/api/play", { method: "POST", body: { ...seq, label: `preview of ${name}` } });
+    toast(r.ok ? "Showing on the lights" : "Sent, but the bridge didn't confirm", !r.ok);
+  } catch (err) { toast(err.message, true); }
+  refreshState();
+});
+$("#mDelete").addEventListener("click", async () => {
+  if (!confirm(`Delete "${$("#mName").value || "this pattern"}"?`)) return;
+  try {
+    await api("/api/patterns/delete", { method: "POST", body: { id: M.id } });
+    await loadPatterns(); S.favorites = S.favorites.filter(f => f !== M.id);
+    renderChips(); renderGrid(); $("#mk").close(); toast("Pattern deleted");
+  } catch (err) { $("#mErr").textContent = err.message; }
+});
+$("#mkForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  try {
+    const saved = await api("/api/patterns", { method: "POST",
+      body: { id: M.id, alias: $("#mName").value.trim() || "My pattern", ...makerSeq() } });
+    await loadPatterns();
+    S.filter = "Mine"; $("#search").value = "";
+    renderChips(); renderGrid(); renderSchedules();
+    $("#mk").close(); toast(`Saved ${saved.alias}`);
+  } catch (err) { $("#mErr").textContent = err.message; }
+});
+
+// --- log & health ---
+async function renderLog() {
+  const entries = await api("/api/log");
+  $("#log").innerHTML = entries.length ? entries.slice(0, 200).map(e => `<div class="tl lv-${esc(e.level)}">
+    <time>${esc(fmtWhen(e.at))}</time><span class="dot"></span><span>${esc(e.message)}</span></div>`).join("")
+    : `<div class="empty" style="padding:4px 0">Nothing yet.</div>`;
+}
+// --- reliability history ---
+let histDays = 7, hist = null;
+async function loadHistory() {
+  try { hist = await api(`/api/history?days=${histDays}`); } catch { return; }
+  renderReliability();
+}
+function renderReliability() {
+  if (!hist) return;
+  const st = hist.stats;
+  const stat = (k, v, bad) => `<div class="stat"><div class="k">${esc(k)}</div><div class="v ${bad ? "bad" : ""}">${esc(v)}</div></div>`;
+  const pct = n => st.scheduled ? `${Math.round(100 * n / st.scheduled)}%` : "—";
+  $("#relStats").innerHTML =
+    stat("Scheduled changes", st.scheduled) +
+    stat("First try", st.scheduled ? `${st.firstTry} · ${pct(st.firstTry)}` : "—") +
+    stat("After retries", st.afterRetries, st.afterRetries > 0) +
+    stat("Gave up", st.gaveUp, st.gaveUp > 0) +
+    stat("Bridge did it first", st.alreadySet) +
+    stat("Typical signal", st.rssiMedian == null ? "—" : `${st.rssiMedian} dBm`, st.rssiMedian != null && st.rssiMedian <= -95);
+  renderSignalChart(hist.samples);
+  const rows = [...hist.changes].reverse().slice(0, 40);
+  $("#changeList").innerHTML = rows.length ? rows.map(c => {
+    let label, color;
+    if (c.result === "outside") { label = "Changed outside this app"; color = "#55535d"; }
+    else if (c.result === "gaveup") { label = "Gave up"; color = "var(--err)"; }
+    else if (c.alreadySet) { label = "Bridge did it first"; color = "var(--ok)"; }
+    else if (c.tries > 1) { label = `After ${c.tries} tries`; color = "var(--warn)"; }
+    else { label = "First try"; color = "var(--ok)"; }
+    const what = c.action === "off" ? "Off" : `${c.name} on`;
+    return `<div class="tl"><time>${esc(fmtWhen(c.at))}</time><span>${esc(c.result === "outside" ? `Now ${c.name}` : what)}</span>
+      <span class="outcome"><span class="dot" style="background:${color}"></span>${esc(label)}</span></div>`;
+  }).join("") : `<div class="empty" style="padding:4px 0">No scheduled changes recorded yet.</div>`;
+}
+function renderSignalChart(samples) {
+  const box = $("#sigChart"), tip = $("#sigTip");
+  box.querySelector("svg")?.remove(); box.querySelector(".empty")?.remove();
+  const raw = samples.filter(x => x.ok && x.rssi != null).map(x => ({ ...x, t: +new Date(x.at) }));
+  // The signal swings a lot sample to sample, so plot each bucket's median with its min–max range.
+  const bucket = (histDays === 1 ? 30 : histDays === 7 ? 120 : 360) * 60e3;
+  const groups = new Map();
+  raw.forEach(p => { const k = Math.floor(p.t / bucket); (groups.get(k) || groups.set(k, []).get(k)).push(p); });
+  const pts = [...groups.entries()].sort((a, b) => a[0] - b[0]).map(([k, g]) => {
+    const r = g.map(p => p.rssi).sort((a, b) => a - b), n = g.map(p => p.snr).sort((a, b) => a - b);
+    return { t: k * bucket + bucket / 2, at: new Date(k * bucket).toISOString(), rssi: r[Math.floor(r.length / 2)],
+      lo: r[0], hi: r[r.length - 1], snr: n[Math.floor(n.length / 2)], count: g.length };
+  });
+  $("#sigTable").innerHTML = `<table><tr><th>Time</th><th>RSSI</th><th>SNR</th><th>Restarts (bridge / zone)</th></tr>${
+    [...samples].reverse().slice(0, 100).map(x => `<tr><td>${esc(fmtWhen(x.at))}</td><td>${x.ok ? esc(x.rssi) : "no answer"}</td>
+      <td>${x.ok ? esc(x.snr) : ""}</td><td>${x.ok ? `${esc(x.bridgeReboots)} / ${esc(x.zoneReboots)}` : ""}</td></tr>`).join("")}</table>`;
+  if (pts.length < 2) {
+    box.insertAdjacentHTML("afterbegin", `<div class="empty">Collecting data. The app samples the signal every 5 minutes, so the chart fills in over the next hour.</div>`);
+    return;
+  }
+  const W = box.clientWidth || 600, H = 190, L = 40, R = 8, T = 10, B = 24;
+  const t1 = Date.now(), t0 = t1 - histDays * 864e5;
+  const y0 = Math.min(-115, ...pts.map(p => p.lo)), y1 = Math.max(-80, ...pts.map(p => p.hi));
+  const x = t => L + (t - t0) / (t1 - t0) * (W - L - R);
+  const y = v => T + (y1 - v) / (y1 - y0) * (H - T - B);
+  const ticksY = [];
+  for (let v = Math.ceil(y1 / 10) * 10; v >= y0; v -= 10) ticksY.push(v);
+  const tickX = [];
+  const step = histDays === 1 ? 6 * 36e5 : histDays === 7 ? 864e5 : 7 * 864e5;
+  const startX = new Date(t0); startX.setMinutes(0, 0, 0);
+  if (histDays > 1) startX.setHours(0);
+  for (let t = +startX + step; t < t1; t += step) tickX.push(t);
+  const fmtX = t => histDays === 1 ? new Date(t).toLocaleTimeString([], { hour: "numeric", timeZone: S.tz })
+    : new Date(t).toLocaleDateString([], { month: "short", day: "numeric", timeZone: S.tz });
+  // Break the line where the bridge didn't answer or samples are far apart.
+  // Split into runs wherever buckets are missing (bridge not answering or app not running).
+  const runs = [];
+  pts.forEach((p, i) => { if (!i || p.t - pts[i - 1].t > bucket * 1.5) runs.push([]); runs[runs.length - 1].push(p); });
+  const d = runs.map(r => r.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${y(p.rssi).toFixed(1)}`).join("")).join("");
+  const band = runs.filter(r => r.length > 1).map(r =>
+    "M" + r.map(p => `${x(p.t).toFixed(1)},${y(p.hi).toFixed(1)}`).join("L") +
+    "L" + [...r].reverse().map(p => `${x(p.t).toFixed(1)},${y(p.lo).toFixed(1)}`).join("L") + "Z").join("");
+  const reboots = [];
+  samples.forEach((s, i) => {
+    const before = samples.slice(0, i).reverse().find(q => q.ok);
+    if (s.ok && before && (s.bridgeReboots > before.bridgeReboots || s.zoneReboots > before.zoneReboots)) reboots.push(+new Date(s.at));
+  });
+  const gaps = samples.filter(s => !s.ok).map(s => +new Date(s.at));
+  const svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Roofline signal strength over the last ${histDays === 1 ? "24 hours" : histDays + " days"}">
+    <g class="grid">${ticksY.map(v => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/>`).join("")}</g>
+    <g>${ticksY.map(v => `<text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`).join("")}</g>
+    <g class="ref">${[-90, -100].filter(v => v > y0 && v < y1).map(v => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/>
+      <text x="${W - R}" y="${y(v) - 4}" text-anchor="end">${v === -90 ? "comfortable above" : "marginal below"}</text>`).join("")}</g>
+    <g>${tickX.map(t => `<text x="${x(t)}" y="${H - 6}" text-anchor="middle">${esc(fmtX(t))}</text>`).join("")}</g>
+    ${gaps.map(t => `<rect class="gap" x="${x(t) - 1.5}" y="${H - B - 4}" width="3" height="4" rx="1"/>`).join("")}
+    ${reboots.map(t => `<line class="reboot" x1="${x(t)}" x2="${x(t)}" y1="${H - B}" y2="${H - B - 10}"/>`).join("")}
+    <path class="band" d="${band}"/>
+    <path class="ln" d="${d}"/>
+    <line class="xh" id="sigXh" y1="${T}" y2="${H - B}" style="display:none"/>
+    <circle class="dotx" id="sigDot" r="4" style="display:none"/>
+    <rect id="sigHit" x="${L}" y="0" width="${W - L - R}" height="${H}" fill="transparent"/>
+  </svg>`;
+  box.insertAdjacentHTML("afterbegin", svg);
+  const hit = $("#sigHit"), xh = $("#sigXh"), dot = $("#sigDot");
+  const move = ev => {
+    const r = box.getBoundingClientRect();
+    const px = (ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left;
+    const tt = t0 + (px * (W / r.width) - L) / (W - L - R) * (t1 - t0);
+    const p = pts.reduce((a, b) => Math.abs(b.t - tt) < Math.abs(a.t - tt) ? b : a);
+    const sx = x(p.t), sy = y(p.rssi);
+    xh.setAttribute("x1", sx); xh.setAttribute("x2", sx); xh.style.display = "";
+    dot.setAttribute("cx", sx); dot.setAttribute("cy", sy); dot.style.display = "";
+    tip.innerHTML = `${esc(fmtWhen(p.at))}<br><b>${esc(p.rssi)} dBm</b> typical · range ${esc(p.lo)} to ${esc(p.hi)}<br>SNR ${esc(p.snr)} · ${p.count} samples`;
+    tip.style.left = `${sx * r.width / W}px`; tip.style.top = `${sy * r.height / H}px`; tip.style.display = "block";
+  };
+  const leave = () => { xh.style.display = dot.style.display = "none"; tip.style.display = "none"; };
+  hit.addEventListener("mousemove", move); hit.addEventListener("touchmove", move, { passive: true });
+  hit.addEventListener("touchstart", move, { passive: true });
+  hit.addEventListener("mouseleave", leave); hit.addEventListener("touchend", () => setTimeout(leave, 1500));
+}
+$("#histRange").addEventListener("click", e => {
+  const b = e.target.closest("[data-d]"); if (!b) return;
+  histDays = +b.dataset.d;
+  document.querySelectorAll("#histRange .chip").forEach(c => c.setAttribute("aria-pressed", c === b));
+  loadHistory();
+});
+window.addEventListener("resize", () => { if (hist && $("#tab-health").classList.contains("active")) renderSignalChart(hist.samples); });
+
+function renderVersion() {
+  const st = S.state || {};
+  const stale = st.pageVersion && st.pageVersion !== PAGE_VERSION;
+  $("#version").innerHTML = `Page ${esc(PAGE_VERSION)} · Server ${esc(st.serverVersion || "?")} · ${STANDALONE ? "home screen app" : "browser"}` +
+    (stale ? `<br><span style="color:var(--warn)">This page is out of date (server has ${esc(st.pageVersion)}). Pull down to reload, or close and reopen the app.</span>` : "");
+}
+
+function renderGoLinks() {
+  const base = location.origin;
+  const links = [["Turn on (scheduled, last or favorite pattern)", "/go/on"], ["Turn off", "/go/off"],
+    ["Play a pattern by name", "/go/play?name=Candy%20Corn"]];
+  $("#goLinks").innerHTML = links.map(([label, path]) => `<div class="tl" style="flex-direction:column;gap:2px">
+    <span>${esc(label)}</span><code style="color:var(--accent);font-size:13px;word-break:break-all">${esc(base + path)}</code></div>`).join("");
+}
+async function loadSettings() {
+  try { $("#ntfyUrl").value = (await api("/api/settings")).ntfyUrl || ""; } catch {}
+}
+$("#ntfySave").addEventListener("click", async () => {
+  try { await api("/api/settings", { method: "PUT", body: { ntfyUrl: $("#ntfyUrl").value.trim() } }); toast("Alert settings saved"); }
+  catch (e) { toast(e.message, true); }
+});
+$("#ntfyTest").addEventListener("click", async () => {
+  try {
+    await api("/api/settings", { method: "PUT", body: { ntfyUrl: $("#ntfyUrl").value.trim() } });
+    const r = await api("/api/settings/test", { method: "POST" });
+    toast(r.ok ? "Test alert sent" : `Alert failed: ${r.error}`, !r.ok);
+  } catch (e) { toast(e.message, true); }
+});
+$("#ntfyUrl").addEventListener("keydown", e => { if (e.key === "Enter") e.target.blur(); });
+
+function renderHealth() {
+  const st = S.state; if (!st || !st.bridge) return;
+  const b = st.bridge;
+  const stat = (k, v, bad) => `<div class="stat"><div class="k">${esc(k)}</div><div class="v ${bad ? "bad" : ""}">${esc(v)}</div></div>`;
+  $("#bridgeStats").innerHTML = stat("Address", b.ip) + stat("Firmware", b.firmware) +
+    stat("Reboots", b.reboots, b.reboots > 10) + stat("Cloud", b.cloud ? "Reachable" : "Unreachable", !b.cloud) +
+    stat("Last check-in", b.lastCheckin ? fmtWhen(b.lastCheckin) : "—");
+  $("#zoneStats").innerHTML = (st.zones || []).map(z =>
+    stat("Signal (RSSI)", `${z.rssi} dBm`, z.rssi <= -95) + stat("SNR", z.snr, z.snr < -10) +
+    stat("Reboots", z.reboots, z.reboots > 10) + stat("LEDs", z.leds) +
+    stat("Last response", z.lastResponse ? fmtWhen(z.lastResponse) : "—")).join("");
+}
+
+// --- tabs & loading ---
+document.querySelectorAll("nav.tabs button").forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab)));
+function showTab(name) {
+  document.querySelectorAll("nav.tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === name));
+  document.querySelectorAll("main section").forEach(s => s.classList.toggle("active", s.id === `tab-${name}`));
+  try { localStorage.setItem("tab", name); } catch {}
+  if (name === "log") renderLog().catch(() => {});
+  if (name === "health") loadHistory();
+  window.scrollTo(0, 0);
+}
+async function refreshState() {
+  try {
+    S.state = await api("/api/state");
+    S.tz = S.state.tz; S.favorites = S.state.favorites || S.favorites;
+  } catch (e) { S.state = { bridgeError: e.message }; }
+  renderNow(); renderUpcoming(); renderHealth(); renderVersion();
+  if ($("#tab-log").classList.contains("active")) renderLog().catch(() => {});
+}
+async function init() {
+  fillSelects();
+  try { const t = localStorage.getItem("tab"); if (t) showTab(t); } catch {}
+  await refreshState();
+  try {
+    await loadPatterns();
+    if (!S.favorites.length) S.filter = "All";
+  } catch (e) { toast(`Couldn't load patterns: ${e.message}`, true); }
+  S.schedules = await api("/api/schedules").catch(() => []);
+  renderChips(); renderGrid(); renderSchedules(); renderNow(); renderGoLinks(); loadSettings();
+  setInterval(refreshState, 20000);
+}
+init();
+</script>
+</body>
+</html>

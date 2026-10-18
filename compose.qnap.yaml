@@ -1,0 +1,22 @@
+# Paste into Container Station > Applications > Create.
+# Runs straight from the files in the Container Station share, so no image build is needed.
+services:
+  everlights:
+    image: python:3.12-slim
+    container_name: everlights
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -c "pip install -q --root-user-action=ignore tzdata && python server.py"
+    ports:
+      - "8090:8080"   # QTS itself uses 8080
+    environment:
+      EVERLIGHTS_HOST: 192.168.1.50   # your bridge
+      TZ: America/Los_Angeles
+      LAT: "37.7749"   # your location
+      LON: "-122.4194"
+      REASSERT_MINUTES: "2,10"
+      DATA_DIR: /data
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - "/share/Container Station/everlights:/app:ro"
+      - "/share/Container Station/everlights/data:/data"

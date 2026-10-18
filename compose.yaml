@@ -1,0 +1,19 @@
+# For QNAP Container Station: Applications > Create, paste this file,
+# and point the build at this folder (or build the image first, see README).
+services:
+  everlights:
+    build: .
+    image: everlights:latest
+    container_name: everlights
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      EVERLIGHTS_HOST: 192.168.1.50   # your bridge
+      TZ: America/Los_Angeles
+      # Set these to your house for exact sunrise/sunset times.
+      LAT: "37.7749"
+      LON: "-122.4194"
+      REASSERT_MINUTES: "2,10"
+    volumes:
+      - ./data:/data
