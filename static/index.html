@@ -161,6 +161,7 @@ h2:first-child { margin-top: 0; }
   padding: 6px 9px; font-size: 12px; white-space: nowrap; transform: translate(-50%, -110%); display: none; z-index: 2; }
 .tip b { font-weight: 600; }
 .outcome { font-size: 12px; color: var(--muted); margin-left: auto; padding-left: 8px; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+#changeList .tl > span:nth-child(2) { min-width: 0; }
 .outcome .dot { margin-top: 0; }
 details.data summary { cursor: pointer; color: var(--muted); font-size: 13px; margin-top: 10px; }
 details.data table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; font-variant-numeric: tabular-nums; }
@@ -889,7 +890,7 @@ function renderReliability() {
   const rows = [...hist.changes].reverse().slice(0, 40);
   $("#changeList").innerHTML = rows.length ? rows.map(c => {
     let label, color;
-    if (c.result === "outside") { label = "Changed outside this app"; color = "#55535d"; }
+    if (c.result === "outside") { label = "Outside change"; color = "#55535d"; }
     else if (c.result === "gaveup") { label = "Gave up"; color = "var(--err)"; }
     else if (c.alreadySet) { label = "Bridge did it first"; color = "var(--ok)"; }
     else if (c.tries > 1) { label = `After ${c.tries} tries`; color = "var(--warn)"; }
@@ -1022,11 +1023,11 @@ function renderHealth() {
   const b = st.bridge;
   const stat = (k, v, bad) => `<div class="stat"><div class="k">${esc(k)}</div><div class="v ${bad ? "bad" : ""}">${esc(v)}</div></div>`;
   $("#bridgeStats").innerHTML = stat("Address", b.ip) + stat("Firmware", b.firmware) +
-    stat("Reboots", b.reboots, b.reboots > 10) + stat("Cloud", b.cloud ? "Reachable" : "Unreachable", !b.cloud) +
+    stat("Reboots (lifetime)", b.reboots) + stat("Cloud", b.cloud ? "Reachable" : "Unreachable", !b.cloud) +
     stat("Last check-in", b.lastCheckin ? fmtWhen(b.lastCheckin) : "—");
   $("#zoneStats").innerHTML = (st.zones || []).map(z =>
-    stat("Signal (RSSI)", `${z.rssi} dBm`, z.rssi <= -95) + stat("SNR", z.snr, z.snr < -10) +
-    stat("Reboots", z.reboots, z.reboots > 10) + stat("LEDs", z.leds) +
+    stat("Signal (RSSI)", `${z.rssi} dBm`, z.rssi <= -95) + stat("SNR (as reported)", z.snr) +
+    stat("Reboots (lifetime)", z.reboots) + stat("LEDs", z.leds) +
     stat("Last response", z.lastResponse ? fmtWhen(z.lastResponse) : "—")).join("");
 }
 

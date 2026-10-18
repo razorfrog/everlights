@@ -94,15 +94,12 @@ def set_sequence(host, zone, sequence):
 
 
 def zone_health(z):
-    rssi, snr = z.get("rssi"), z.get("snr")
-    notes = []
+    # Judged on RSSI alone: the bridge's "snr" stays at about -109 whatever the
+    # signal does, and rebootCount is a lifetime total (the app alerts on new ones).
+    rssi = z.get("rssi")
     if rssi is not None and rssi <= -95:
-        notes.append(f"weak radio (RSSI {rssi} dBm)")
-    if snr is not None and snr < -10:
-        notes.append(f"poor SNR ({snr})")
-    if z.get("rebootCount", 0) > 10:
-        notes.append(f"{z['rebootCount']} reboots")
-    return "; ".join(notes) or "ok"
+        return f"weak radio (RSSI {rssi} dBm)"
+    return "ok"
 
 
 def print_json(obj):
