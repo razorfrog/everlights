@@ -28,6 +28,9 @@ It's built for phones first: add it to your home screen and it opens like an app
 - **Reliability history:** signal strength (RSSI/SNR) over time, bridge and zone
   restarts, and how every scheduled change went: first try, after retries, gave up,
   or already done by the bridge's own schedule.
+
+  <img src="docs/screenshots/health.jpg" width="300" alt="Health tab: signal strength over a day, with the jump after moving the bridge">
+
 - **Push alerts** via [ntfy](https://ntfy.sh): get a notification on your phone when a
   scheduled change gives up or only worked after retries, when the bridge stops
   answering (and when it's back), or when the bridge or controller restarts.
