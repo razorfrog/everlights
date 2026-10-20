@@ -48,8 +48,21 @@ h1 { font-size: clamp(28px, 7vw, 44px); line-height: 1.1; margin: 10px 0 6px; le
   .row time { width: auto; font-size: 13px; }
 }
 .row .what b { font-weight: 600; }
-.mini { display: flex; gap: 3px; margin-top: 5px; }
-.mini i { width: 8px; height: 8px; border-radius: 50%; display: block; }
+.mini {
+  height: 10px; margin-top: 6px; max-width: 220px; background-repeat: repeat-x;
+  -webkit-mask: radial-gradient(circle at 5px 5px, #000 3.6px, transparent 4.2px) 0 0 / 11px 10px repeat-x;
+          mask: radial-gradient(circle at 5px 5px, #000 3.6px, transparent 4.2px) 0 0 / 11px 10px repeat-x;
+}
+.mini.chase, .mini.pingPong, .mini.wipe { animation: mchase var(--dur, 3s) linear infinite; }
+.mini.reverseChase { animation: mchase var(--dur, 3s) linear infinite reverse; }
+.mini.fade { animation: mfade var(--dur, 3s) ease-in-out infinite; }
+.mini.twinkle, .mini.random, .mini.lightning { animation: mtwinkle 1.6s steps(4) infinite; }
+.mini.blink, .mini.strobe { animation: mblink var(--dur, 1s) steps(2) infinite; }
+@keyframes mchase { to { background-position-x: var(--len, 110px); } }
+@keyframes mfade { 50% { filter: brightness(.35); } }
+@keyframes mtwinkle { 25% { filter: brightness(.6); } 50% { filter: brightness(1.15); } 75% { filter: brightness(.8); } }
+@keyframes mblink { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .mini { animation: none !important; } }
 .empty { color: var(--muted); font-size: 14px; }
 footer { text-align: center; color: var(--faint); font-size: 13px; padding: 4px 16px calc(48px + env(safe-area-inset-bottom)); }
 footer a { color: var(--muted); }
@@ -128,13 +141,9 @@ const N = 41, bulbs = [], glows = [];
 })();
 
 let offset = 0, tick = 0, timer = null;
-// What the roofline shows: the live pattern, or while the lights are off, a dimmed
-// preview of the next show.
+// The roofline shows only what's really on; it's dark while the lights are off.
 function showing() {
-  if (!state) return null;
-  if (state.on) return { pattern: state.pattern || [], effects: state.effects || [], dim: 1 };
-  const next = (state.upcoming || []).find(u => u.action === "on" && (u.pattern || []).length);
-  return next ? { pattern: next.pattern, effects: next.effects || [], dim: .45 } : null;
+  return state && state.on ? { pattern: state.pattern || [], effects: state.effects || [], dim: 1 } : null;
 }
 function frame() {
   const show = showing();
@@ -180,6 +189,17 @@ function fmtShort(iso) {
     : new Date(iso).toLocaleDateString([], { month: "short", day: "numeric", timeZone: tz });
   return `${label} ${fmtTime(iso)}`;
 }
+// A small strip of the show's colors, animated with its first effect.
+function miniStrip(u) {
+  const p = u.pattern || [];
+  if (!p.length) return "";
+  const n = p.length, step = 100 / n;
+  const stops = p.map((c, i) => `rgb(${rgb(c).join(",")}) ${(i * step).toFixed(2)}% ${((i + 1) * step).toFixed(2)}%`).join(", ");
+  const fx = (u.effects || [])[0];
+  const speed = fx ? Math.max(0, Math.min(255, fx.value ?? 128)) : 0;
+  const style = `background-image:linear-gradient(90deg, ${stops});background-size:${n * 11}px 100%;--len:${n * 11}px;--dur:${(6.5 - speed / 46).toFixed(2)}s`;
+  return `<div class="mini ${fx ? esc(fx.effectType) : ""}" style="${style}"></div>`;
+}
 function render() {
   const s = state;
   const next = (s.upcoming || [])[0];
@@ -195,13 +215,13 @@ function render() {
   } else {
     $("#kicker").textContent = "Lights are off";
     $("#title").textContent = nextOn ? `Next: ${nextOn.name}` : "No show scheduled";
-    $("#sub").textContent = nextOn ? `${fmtWhen(nextOn.at)} · previewing it below` : "Check back soon.";
+    $("#sub").textContent = nextOn ? fmtWhen(nextOn.at) : "Check back soon.";
   }
   const rows = (s.upcoming || []).filter(u => u.action === "on").slice(0, 6);
   $("#upcoming").innerHTML = rows.length ? rows.map(u => {
     const off = s.upcoming.find(x => x.action === "off" && x.at > u.at);
-    const dots = (u.pattern || []).slice(0, 14).map(c => `<i style="background:rgb(${rgb(c).join(",")})"></i>`).join("");
-    return `<div class="row"><time>${esc(fmtShort(u.at))}</time><div class="what"><b>${esc(u.name)}</b>${off ? ` until ${esc(fmtTime(off.at))}` : ""}<div class="mini">${dots}</div></div></div>`;
+    const dots = miniStrip(u);
+    return `<div class="row"><time>${esc(fmtShort(u.at))}</time><div class="what"><b>${esc(u.name)}</b>${off ? ` until ${esc(fmtTime(off.at))}` : ""}${dots}</div></div>`;
   }).join("") : `<div class="empty">Nothing scheduled in the next few weeks.</div>`;
   $("#updated").textContent = fmtTime(s.updated);
   startAnimation();
