@@ -83,7 +83,7 @@ use at home. For access from anywhere, use the separate public entrance below.
 
 ### Remote access and a public live page
 
-Set `PUBLIC_PORT` (e.g. `8091`) to start a second entrance meant for a tunnel such as
+Set `PUBLIC_PORT` (e.g. `8095`) to start a second entrance meant for a tunnel such as
 [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/):
 
 - `/` is a public **live show** page: the current pattern animated along a roofline,

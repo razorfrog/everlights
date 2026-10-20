@@ -15,6 +15,6 @@ services:
       LAT: "37.7749"
       LON: "-122.4194"
       REASSERT_MINUTES: "2,10"
-      # PUBLIC_PORT: "8091"   # public live page + password-protected app, for a tunnel
+      # PUBLIC_PORT: "8095"   # public live page + password-protected app, for a tunnel
     volumes:
       - ./data:/data
