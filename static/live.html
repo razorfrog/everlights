@@ -41,7 +41,7 @@ h1 { font-size: clamp(28px, 7vw, 44px); line-height: 1.1; margin: 10px 0 6px; le
 .panel h2 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
 .row { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-top: 1px solid var(--edge); }
 .row:first-of-type { border-top: 0; }
-.row time { color: var(--muted); width: 104px; flex: none; font-variant-numeric: tabular-nums; font-size: 14px; white-space: nowrap; }
+.row time { color: var(--muted); width: 150px; flex: none; font-variant-numeric: tabular-nums; font-size: 14px; white-space: nowrap; }
 .row .what { flex: 1; min-width: 0; }
 @media (max-width: 520px) {
   .row { flex-direction: column; align-items: flex-start; gap: 2px; }
@@ -51,7 +51,7 @@ h1 { font-size: clamp(28px, 7vw, 44px); line-height: 1.1; margin: 10px 0 6px; le
 .mini { display: flex; gap: 3px; margin-top: 5px; }
 .mini i { width: 8px; height: 8px; border-radius: 50%; display: block; }
 .empty { color: var(--muted); font-size: 14px; }
-footer { text-align: center; color: var(--faint); font-size: 13px; padding: 0 0 28px; }
+footer { text-align: center; color: var(--faint); font-size: 13px; padding: 4px 16px calc(48px + env(safe-area-inset-bottom)); }
 footer a { color: var(--muted); }
 </style>
 </head>
