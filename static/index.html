@@ -1040,9 +1040,25 @@ $("#remoteNewToken").addEventListener("click", async () => {
   try { await api("/api/remote/token", { method: "POST" }); toast("New token made"); loadRemote(); }
   catch (e) { toast(e.message, true); }
 });
+// navigator.clipboard only exists on HTTPS pages; the home address is plain HTTP,
+// so fall back to the older copy command there.
+async function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+  const ta = Object.assign(document.createElement("textarea"), { value: text, readOnly: true });
+  ta.style.cssText = "position:fixed;top:0;left:0;opacity:0";
+  document.body.appendChild(ta);
+  ta.select(); ta.setSelectionRange(0, text.length);
+  const ok = document.execCommand("copy");
+  ta.remove();
+  if (!ok) throw new Error("copy failed");
+}
 $("#remoteCopy").addEventListener("click", async () => {
-  try { await navigator.clipboard.writeText($("#remoteToken").textContent); toast("Token copied"); }
-  catch { toast("Couldn't copy; select it instead", true); }
+  try { await copyText($("#remoteToken").textContent); toast("Token copied"); }
+  catch {
+    const range = document.createRange(); range.selectNodeContents($("#remoteToken"));
+    getSelection().removeAllRanges(); getSelection().addRange(range);
+    toast("Selected; copy it from the menu", true);
+  }
 });
 
 function renderGoLinks() {

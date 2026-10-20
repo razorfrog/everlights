@@ -1,7 +1,7 @@
 {
   "name": "Everlights",
   "short_name": "Everlights",
-  "start_url": "/",
+  "start_url": "/admin/",
   "display": "standalone",
   "background_color": "#111014",
   "theme_color": "#111014",

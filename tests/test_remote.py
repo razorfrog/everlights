@@ -89,14 +89,16 @@ class RemoteTests(unittest.TestCase):
         st, headers, _ = self.login("wrong password")
         self.assertEqual(st, 401)
         st, headers, _ = self.login()
-        self.assertEqual(st, 303)
+        self.assertEqual((st, headers.get("Location")), (303, "/admin/"))
         cookie = headers["Set-Cookie"]
         self.assertIn("HttpOnly", cookie)
         self.assertIn("Secure", cookie)
         jar = {"Cookie": cookie.split(";")[0]}
         self.assertEqual(self.req(self.remote, "GET", "/api/state", headers=jar)[0], 200)
+        st, _, body = self.req(self.remote, "GET", "/admin/", headers=jar)
+        self.assertIn(b"Everlights</title>", body)  # the full app
         st, _, body = self.req(self.remote, "GET", "/", headers=jar)
-        self.assertIn(b"Everlights</title>", body)  # the full app, not the live page
+        self.assertIn(b"Roofline Live", body)  # / stays the live view, signed in or not
         # remote access settings are LAN-only, even when signed in
         self.assertEqual(self.req(self.remote, "GET", "/api/remote", headers=jar)[0], 403)
         self.assertEqual(self.req(self.remote, "PUT", "/api/remote", '{"password":"x"}', jar)[0], 403)
@@ -107,6 +109,16 @@ class RemoteTests(unittest.TestCase):
         # a new password signs existing sessions out
         self.set_password("another password")
         self.assertEqual(self.req(self.remote, "GET", "/api/state", headers=jar)[0], 401)
+
+    def test_same_layout_at_home(self):
+        st, _, body = self.req(self.lan, "GET", "/")
+        self.assertIn(b"Roofline Live", body)
+        for path in ("/admin", "/admin/", "/index.html"):
+            st, _, body = self.req(self.lan, "GET", path)
+            self.assertIn(b"Everlights</title>", body, path)
+        self.assertEqual(self.req(self.lan, "GET", "/api/state")[0], 200)  # no password at home
+        st, _, body = self.req(self.remote, "GET", "/admin/")
+        self.assertIn(b"Sign in", body)  # but the tunnel asks for one
 
     def test_lockout(self):
         self.set_password()

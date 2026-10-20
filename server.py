@@ -35,6 +35,8 @@ import scheduler
 ROOT = os.path.dirname(os.path.abspath(__file__))
 STATIC = os.path.join(ROOT, "static")
 INDEX = os.path.join(STATIC, "index.html")
+LOGIN = os.path.join(STATIC, "login.html")
+LIVE = os.path.join(STATIC, "live.html")
 TYPES = {".png": "image/png", ".webmanifest": "application/manifest+json", ".svg": "image/svg+xml",
          ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8"}
 def file_version(*names):
@@ -192,19 +194,41 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:
             self.send_json({"error": f"bridge: {e}"}, 502)
 
+    def send_app(self):
+        with open(INDEX, "rb") as f:
+            body = f.read()
+        body = body.replace(b"__PAGE_VERSION__", hashlib.sha1(body).hexdigest()[:7].encode())
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def send_page(self, path, replace=None, code=200, headers=()):
+        with open(path, "rb") as f:
+            body = f.read()
+        for k, v in (replace or {}).items():
+            body = body.replace(k.encode(), v.encode())
+        self.send_response(code)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("X-Frame-Options", "DENY")
+        for k, v in headers:
+            self.send_header(k, v)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_GET(self):
+        # The same layout on both entrances: / is the public live view, /admin the app.
         url = urlparse(self.path)
-        if url.path in ("/", "/index.html"):
-            with open(INDEX, "rb") as f:
-                body = f.read()
-            body = body.replace(b"__PAGE_VERSION__", hashlib.sha1(body).hexdigest()[:7].encode())
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Cache-Control", "no-cache")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-            return
+        if url.path in ("/", "/live"):
+            return self.send_page(LIVE)
+        if url.path in ("/admin", "/admin/", "/index.html"):
+            return self.send_app()
+        if url.path == "/sw.js":
+            return self.send_static("sw.js")
         if url.path.startswith("/go/"):
             return self.handle_go(url)
         name = ALIASES.get(url.path) or (url.path[len("/static/"):] if url.path.startswith("/static/") else None)
@@ -417,9 +441,6 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(clean)
 
 
-LOGIN = os.path.join(STATIC, "login.html")
-LIVE = os.path.join(STATIC, "live.html")
-PUBLIC_PATHS = {"/live", "/api/live", "/sw.js", "/admin", "/admin/", "/admin/login", "/admin/logout"}
 
 
 class RemoteHandler(Handler):
@@ -439,21 +460,6 @@ class RemoteHandler(Handler):
         jar = cookies.SimpleCookie(self.headers.get("Cookie") or "")
         value = jar[auth.COOKIE].value if auth.COOKIE in jar else None
         return auth.check_session(st.get("sessionSecret"), value)
-
-    def send_page(self, path, replace=None, code=200, headers=()):
-        with open(path, "rb") as f:
-            body = f.read()
-        for k, v in (replace or {}).items():
-            body = body.replace(k.encode(), v.encode())
-        self.send_response(code)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Cache-Control", "no-cache")
-        self.send_header("X-Frame-Options", "DENY")
-        for k, v in headers:
-            self.send_header(k, v)
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
 
     def redirect(self, to, headers=()):
         self.send_response(303)
@@ -487,14 +493,12 @@ class RemoteHandler(Handler):
 
     def do_GET(self):
         path = urlparse(self.path).path
-        if path == "/":
-            return Handler.do_GET(self) if self.authed() else self.send_page(LIVE)
-        if path == "/live":
+        if path in ("/", "/live"):
             return self.send_page(LIVE)
         if path == "/api/live":
             return self.handle_errors(lambda: self.send_json(live_state(self.ctl)))
         if path in ("/admin", "/admin/"):
-            return self.redirect("/") if self.authed() else self.login_page()
+            return self.send_app() if self.authed() else self.login_page()
         if path == "/sw.js":
             return self.send_static("sw.js")
         if path in ALIASES or path.startswith("/static/"):
@@ -534,7 +538,7 @@ class RemoteHandler(Handler):
             self.ctl.store.save()
         value = auth.make_session(st["sessionSecret"])
         self.ctl.log("info", "Remote sign-in")
-        self.redirect("/", [("Set-Cookie", f"{auth.COOKIE}={value}; Path=/; Max-Age={auth.SESSION_DAYS * 86400}; "
+        self.redirect("/admin/", [("Set-Cookie", f"{auth.COOKIE}={value}; Path=/; Max-Age={auth.SESSION_DAYS * 86400}; "
                                            "HttpOnly; Secure; SameSite=Lax")])
 
 

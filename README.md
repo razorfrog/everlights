@@ -49,7 +49,7 @@ run `./everlights.py discover`), then:
 EVERLIGHTS_HOST=192.168.1.50 LAT=37.7749 LON=-122.4194 python3 server.py
 ```
 
-Open http://localhost:8080. Schedules, your patterns and the logs are saved in `./data`.
+Open http://localhost:8080/admin for the app (`/` is the live view). Schedules, your patterns and the logs are saved in `./data`.
 
 Run the tests with `python3 -m unittest discover -s tests`.
 
@@ -83,21 +83,16 @@ use at home. For access from anywhere, use the separate public entrance below.
 
 ### Remote access and a public live page
 
-Set `PUBLIC_PORT` (e.g. `8095`) to start a second entrance meant for a tunnel such as
-[Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/):
+Every copy of the app has the same layout: **`/` is a live view** of what the
+roofline is showing (animated, with upcoming shows), and **`/admin` is the app**.
 
-- `/` is a public **live show** page: the current pattern animated along a roofline,
-  plus upcoming shows. It's read-only, cached, and shows no addresses or serials.
-- Everything else (the full app, its API and the `/go/` links) needs either a session
-  from signing in at `/admin`, or `Authorization: Bearer <token>` for Shortcuts.
-- Set the password and see the token in the Health tab, from the main (home) port only.
-  Passwords are stored as salted PBKDF2 hashes; 5 wrong tries lock out an address for
-  15 minutes.
-- Over HTTPS, a small service worker shows a "can't reach the lights" page instead of a
-  blank screen when home is offline.
+To reach it from anywhere, set `PUBLIC_PORT` and point a
+[Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
+at it. Through the tunnel the live view is public, and everything else asks for a
+password (or a token, for Siri Shortcuts). The home port stays passwordless and is never
+reachable from the internet.
 
-Point the tunnel at the container's `PUBLIC_PORT` over the Docker network, and don't
-publish that port on your LAN.
+**Step-by-step setup: [docs/remote-access.md](docs/remote-access.md).**
 
 ## CLI
 
