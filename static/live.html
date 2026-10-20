@@ -128,9 +128,18 @@ const N = 41, bulbs = [], glows = [];
 })();
 
 let offset = 0, tick = 0, timer = null;
+// What the roofline shows: the live pattern, or while the lights are off, a dimmed
+// preview of the next show.
+function showing() {
+  if (!state) return null;
+  if (state.on) return { pattern: state.pattern || [], effects: state.effects || [], dim: 1 };
+  const next = (state.upcoming || []).find(u => u.action === "on" && (u.pattern || []).length);
+  return next ? { pattern: next.pattern, effects: next.effects || [], dim: .45 } : null;
+}
 function frame() {
-  const p = (state && state.on && state.pattern) || [];
-  const fx = ((state && state.effects) || []).map(e => e.effectType);
+  const show = showing();
+  const p = (show && show.pattern) || [];
+  const fx = ((show && show.effects) || []).map(e => e.effectType);
   tick++;
   if (fx.includes("chase") || fx.includes("pingPong") || fx.includes("wipe")) offset++;
   if (fx.includes("reverseChase")) offset--;
@@ -139,7 +148,7 @@ function frame() {
   bulbs.forEach((b, i) => {
     if (!p.length) { b.setAttribute("fill", "#2a2733"); glows[i].setAttribute("fill", "transparent"); return; }
     const c = rgb(p[((i + offset) % p.length + p.length) % p.length]);
-    let k = fade * (blinkOff ? .15 : 1);
+    let k = fade * (blinkOff ? .15 : 1) * show.dim;
     if (fx.includes("twinkle") || fx.includes("random") || fx.includes("lightning")) k *= .45 + Math.random() * .55;
     const col = `rgb(${c.map(v => Math.round(v * k)).join(",")})`;
     b.setAttribute("fill", col);
@@ -148,9 +157,10 @@ function frame() {
 }
 function startAnimation() {
   clearInterval(timer);
-  const speed = Math.max(0, Math.min(255, ((state && state.effects && state.effects[0]) || {}).value ?? 128));
+  const show = showing();
+  const speed = Math.max(0, Math.min(255, ((show && show.effects[0]) || {}).value ?? 128));
   frame();
-  if (!reduceMotion && state && state.on && (state.effects || []).length) timer = setInterval(frame, 650 - speed * 2.2);
+  if (!reduceMotion && show && show.effects.length) timer = setInterval(frame, 650 - speed * 2.2);
 }
 
 // --- text ---
@@ -185,7 +195,7 @@ function render() {
   } else {
     $("#kicker").textContent = "Lights are off";
     $("#title").textContent = nextOn ? `Next: ${nextOn.name}` : "No show scheduled";
-    $("#sub").textContent = nextOn ? fmtWhen(nextOn.at) : "Check back soon.";
+    $("#sub").textContent = nextOn ? `${fmtWhen(nextOn.at)} · previewing it below` : "Check back soon.";
   }
   const rows = (s.upcoming || []).filter(u => u.action === "on").slice(0, 6);
   $("#upcoming").innerHTML = rows.length ? rows.map(u => {
