@@ -6,3 +6,7 @@
 __pycache__/
 backups/
 data/
+*.bundle
+*.JPG
+*.jpeg
+IMG_*
