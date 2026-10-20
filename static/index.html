@@ -287,6 +287,27 @@ dialog h3 { margin: 0; padding: 16px 18px 12px; font-size: 18px; outline: none; 
       <p class="note">You'll get a push when a scheduled change gives up, succeeds only after retries, the bridge stops answering for 10 minutes (and when it's back), or the bridge or roofline controller restarts. Anyone who knows a public ntfy.sh topic name can read it, so use a hard-to-guess name.</p>
     </div>
 
+    <h2>Remote access</h2>
+    <div class="row" id="remoteBox">
+      <p class="note" style="margin-top:0" id="remoteStatus">Checking…</p>
+      <div id="remoteLan">
+        <div class="field" style="margin-bottom:10px"><label for="remotePw">New password</label>
+          <input type="password" id="remotePw" class="search" autocomplete="new-password" placeholder="At least 8 characters"></div>
+        <div class="row-actions" style="margin-top:0"><button class="btn primary" id="remotePwSave">Set password</button></div>
+        <p class="note">Setting a password signs out every phone that's signed in remotely. It can only be changed here at home.</p>
+        <div class="field" style="margin:16px 0 6px"><span class="lbl">Shortcut token</span>
+          <code id="remoteToken" style="display:block;word-break:break-all;color:var(--accent);font-size:13px">—</code></div>
+        <div class="row-actions" style="margin-top:6px">
+          <button class="btn" id="remoteCopy">Copy</button>
+          <button class="btn ghost danger" id="remoteNewToken">New token</button>
+        </div>
+        <p class="note">For Shortcuts away from home: in <b>Get Contents of URL</b>, use your public address (like <code>https://lights.mvmp.cc/go/off</code>), and under <b>Headers</b> add <code>Authorization</code> with the value <code>Bearer</code>, a space, and this token.</p>
+      </div>
+      <form method="post" action="/admin/logout" id="remoteSignOut" style="display:none;margin-top:10px">
+        <button class="btn" type="submit">Sign out of this phone</button>
+      </form>
+    </div>
+
     <h2>Siri &amp; Shortcuts</h2>
     <div class="row">
       <p class="note" style="margin-top:0">In the Shortcuts app, add a <b>Get Contents of URL</b> action with one of these links, then <b>Show Result</b> so Siri reads back what happened. Name the shortcut what you want to say, like "Roofline off". These only work on your home Wi-Fi.</p>
@@ -995,6 +1016,35 @@ function renderVersion() {
     (stale ? `<br><span style="color:var(--warn)">This page is out of date (server has ${esc(st.pageVersion)}). Pull down to reload, or close and reopen the app.</span>` : "");
 }
 
+async function loadRemote() {
+  const remote = location.protocol === "https:";
+  $("#remoteSignOut").style.display = remote ? "" : "none";
+  try {
+    const r = await api("/api/remote");
+    $("#remoteStatus").textContent = r.passwordSet
+      ? "A remote password is set. Away from home, sign in at your public address's /admin page."
+      : "No remote password yet. Set one to use the app away from home through your tunnel.";
+    $("#remoteToken").textContent = r.token || "Set a password first";
+    $("#remoteLan").style.display = "";
+  } catch {
+    $("#remoteStatus").textContent = "You're signed in remotely. The password and Shortcut token can only be changed at home.";
+    $("#remoteLan").style.display = "none";
+  }
+}
+$("#remotePwSave").addEventListener("click", async () => {
+  try { await api("/api/remote", { method: "PUT", body: { password: $("#remotePw").value } }); $("#remotePw").value = ""; toast("Remote password set"); loadRemote(); }
+  catch (e) { toast(e.message, true); }
+});
+$("#remoteNewToken").addEventListener("click", async () => {
+  if (!confirm("Make a new token? Shortcuts using the old one will stop working.")) return;
+  try { await api("/api/remote/token", { method: "POST" }); toast("New token made"); loadRemote(); }
+  catch (e) { toast(e.message, true); }
+});
+$("#remoteCopy").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText($("#remoteToken").textContent); toast("Token copied"); }
+  catch { toast("Couldn't copy; select it instead", true); }
+});
+
 function renderGoLinks() {
   const base = location.origin;
   const links = [["Turn on (scheduled, last or favorite pattern)", "/go/on"], ["Turn off", "/go/off"],
@@ -1061,7 +1111,8 @@ async function init() {
     if (!S.favorites.length) S.filter = "All";
   } catch (e) { toast(`Couldn't load patterns: ${e.message}`, true); }
   S.schedules = await api("/api/schedules").catch(() => []);
-  renderChips(); renderGrid(); renderSchedules(); renderNow(); renderGoLinks(); loadSettings();
+  renderChips(); renderGrid(); renderSchedules(); renderNow(); renderGoLinks(); loadSettings(); loadRemote();
+  if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("/sw.js").catch(() => {});
   setInterval(refreshState, 20000);
   if (location.hash === "#new-pattern") openMaker(null);
 }

@@ -78,8 +78,26 @@ It needs to run somewhere that's always on and on the same network as the bridge
   the code straight from the share, so updating means copying new files and restarting
   the container.
 
-**Don't expose it to the internet.** Neither the app nor the bridge has any
-authentication. Use a VPN such as Tailscale for remote access.
+**Don't expose the main port to the internet.** It has no password, by design, for
+use at home. For access from anywhere, use the separate public entrance below.
+
+### Remote access and a public live page
+
+Set `PUBLIC_PORT` (e.g. `8091`) to start a second entrance meant for a tunnel such as
+[Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/):
+
+- `/` is a public **live show** page: the current pattern animated along a roofline,
+  plus upcoming shows. It's read-only, cached, and shows no addresses or serials.
+- Everything else (the full app, its API and the `/go/` links) needs either a session
+  from signing in at `/admin`, or `Authorization: Bearer <token>` for Shortcuts.
+- Set the password and see the token in the Health tab, from the main (home) port only.
+  Passwords are stored as salted PBKDF2 hashes; 5 wrong tries lock out an address for
+  15 minutes.
+- Over HTTPS, a small service worker shows a "can't reach the lights" page instead of a
+  blank screen when home is offline.
+
+Point the tunnel at the container's `PUBLIC_PORT` over the Docker network, and don't
+publish that port on your LAN.
 
 ## CLI
 

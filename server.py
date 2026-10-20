@@ -9,6 +9,11 @@ Environment:
   PORT              HTTP port (default 8080)
   REASSERT_MINUTES  re-send after each transition, minutes (default 2,10)
   SCHEDULER         set to "off" to serve the app without running schedules
+  PUBLIC_PORT       optional second port for a tunnel (e.g. Cloudflare): a public
+                    live-show page at /, everything else behind a password at /admin
+
+Never publish PUBLIC_PORT on your network or PORT to the internet: PORT has no
+password, by design, for use at home.
 """
 
 import hashlib
@@ -16,18 +21,22 @@ import json
 import os
 import sys
 import threading
+import time
+from http import cookies
 from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 from zoneinfo import ZoneInfo
 
+import auth
 import everlights
 import scheduler
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 STATIC = os.path.join(ROOT, "static")
 INDEX = os.path.join(STATIC, "index.html")
-TYPES = {".png": "image/png", ".webmanifest": "application/manifest+json", ".svg": "image/svg+xml"}
+TYPES = {".png": "image/png", ".webmanifest": "application/manifest+json", ".svg": "image/svg+xml",
+         ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8"}
 def file_version(*names):
     h = hashlib.sha1()
     for n in names:
@@ -108,6 +117,38 @@ def history(ctl, query):
     }
 
 
+_live_cache = {"at": 0.0, "data": None}
+_live_lock = threading.Lock()
+
+
+def live_state(ctl):
+    """What the public page shows: the current pattern and the next few shows.
+    Cached for 15 seconds so visitors can't flood the bridge with requests."""
+    with _live_lock:
+        if _live_cache["data"] and time.time() - _live_cache["at"] < 15:
+            return _live_cache["data"]
+        now = datetime.now(ctl.cfg.tz)
+        out = {"tz": str(ctl.cfg.tz), "updated": now.isoformat(timespec="seconds"), "reachable": True}
+        try:
+            cur = ctl.current() or {}
+            match = match_sequence(ctl, cur)
+            out.update(on=bool(cur.get("pattern")), name=match["alias"] if match else None,
+                       pattern=cur.get("pattern", []), effects=cur.get("effects", []))
+        except Exception:
+            out.update(reachable=False, on=None, name=None, pattern=[], effects=[])
+        shows = []
+        for u in scheduler.upcoming(ctl.store.schedules, now, ctl.cfg, limit=8):
+            item = {"at": u["at"], "action": u["action"], "name": u["name"]}
+            if u["action"] == "on":
+                seq = ctl.sequence(u["sequenceId"]) if u.get("sequenceId") else None
+                if seq:
+                    item.update(pattern=seq.get("pattern", []), effects=seq.get("effects", []))
+            shows.append(item)
+        out["upcoming"] = shows
+        _live_cache.update(at=time.time(), data=out)
+        return out
+
+
 class Handler(BaseHTTPRequestHandler):
     ctl = None  # set in main
 
@@ -177,6 +218,8 @@ class Handler(BaseHTTPRequestHandler):
             "/api/log": lambda: self.send_json(list(reversed(self.ctl.store.log))),
             "/api/settings": lambda: self.send_json(self.ctl.settings),
             "/api/history": lambda: self.send_json(history(self.ctl, parse_qs(url.query))),
+            "/api/live": lambda: self.send_json(live_state(self.ctl)),
+            "/api/remote": lambda: self.send_json(self.remote_settings()),
         }
         fn = routes.get(url.path)
         if not fn:
@@ -264,6 +307,11 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:
             self.send_text(f"Couldn't reach the bridge: {e}", 502)
 
+    def remote_settings(self):
+        st = self.ctl.settings
+        return {"passwordSet": bool(st.get("adminPasswordHash")), "token": st.get("apiToken"),
+                "publicPort": os.environ.get("PUBLIC_PORT")}
+
     def remember(self, seq):
         if seq.get("id") and not seq.get("transient"):
             self.ctl.store.data["lastPattern"] = seq["id"]
@@ -289,6 +337,11 @@ class Handler(BaseHTTPRequestHandler):
             if body.get("sequenceId"):
                 self.remember(seq)
             return self.send_json({"ok": ok})
+        if path == "/api/remote/token":
+            self.ctl.settings["apiToken"] = auth.new_secret()
+            self.ctl.store.save()
+            self.ctl.log("info", "New Shortcut token created; the old one stops working")
+            return self.send_json(self.remote_settings())
         if path == "/api/settings/test":
             err = ctl.notify("EverLights test alert", "Alerts from the EverLights app are working.",
                              3, ["bulb"], wait=True)
@@ -332,6 +385,15 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json({"error": "not found"}, 404)
 
     def put(self):
+        if urlparse(self.path).path == "/api/remote":
+            password = str((self.read_json() or {}).get("password") or "")
+            st = self.ctl.settings
+            st["adminPasswordHash"] = auth.hash_password(password)
+            st["sessionSecret"] = auth.new_secret()  # signs everyone out
+            st.setdefault("apiToken", auth.new_secret())
+            self.ctl.store.save()
+            self.ctl.log("info", "Remote password set; existing remote sessions signed out")
+            return self.send_json(self.remote_settings())
         if urlparse(self.path).path == "/api/settings":
             body = self.read_json() or {}
             url = str(body.get("ntfyUrl") or "").strip()
@@ -355,6 +417,127 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(clean)
 
 
+LOGIN = os.path.join(STATIC, "login.html")
+LIVE = os.path.join(STATIC, "live.html")
+PUBLIC_PATHS = {"/live", "/api/live", "/sw.js", "/admin", "/admin/", "/admin/login", "/admin/logout"}
+
+
+class RemoteHandler(Handler):
+    """The tunnel entrance. Public: the live show and static files. Everything
+    else needs the admin session cookie or the Shortcut bearer token. Remote
+    access settings can only be changed from the LAN port."""
+
+    limiter = auth.LoginLimiter()
+
+    def client(self):
+        return self.headers.get("CF-Connecting-IP") or self.client_address[0]
+
+    def authed(self):
+        st = self.ctl.settings
+        if auth.check_token(st.get("apiToken"), self.headers.get("Authorization")):
+            return True
+        jar = cookies.SimpleCookie(self.headers.get("Cookie") or "")
+        value = jar[auth.COOKIE].value if auth.COOKIE in jar else None
+        return auth.check_session(st.get("sessionSecret"), value)
+
+    def send_page(self, path, replace=None, code=200, headers=()):
+        with open(path, "rb") as f:
+            body = f.read()
+        for k, v in (replace or {}).items():
+            body = body.replace(k.encode(), v.encode())
+        self.send_response(code)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("X-Frame-Options", "DENY")
+        for k, v in headers:
+            self.send_header(k, v)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def redirect(self, to, headers=()):
+        self.send_response(303)
+        self.send_header("Location", to)
+        for k, v in headers:
+            self.send_header(k, v)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def login_page(self, error="", code=200):
+        if not self.ctl.settings.get("adminPasswordHash"):
+            error = error or "Remote access isn't set up yet. Set a password in the app's Health tab, on home Wi-Fi."
+        self.send_page(LOGIN, {"__ERROR__": error}, code)
+
+    def deny(self, path):
+        if path.startswith("/api/"):
+            return self.send_json({"error": "sign in at /admin"}, 401)
+        if path.startswith("/go/"):
+            return self.send_text("Not signed in. Add your Shortcut token as an Authorization header.", 401)
+        self.redirect("/admin")
+
+    def gate(self, path):
+        """True if the request may continue to the full app."""
+        if path.startswith("/api/remote"):
+            self.send_json({"error": "remote access settings can only be changed at home"}, 403)
+            return False
+        if not self.authed():
+            self.deny(path)
+            return False
+        return True
+
+    def do_GET(self):
+        path = urlparse(self.path).path
+        if path == "/":
+            return Handler.do_GET(self) if self.authed() else self.send_page(LIVE)
+        if path == "/live":
+            return self.send_page(LIVE)
+        if path == "/api/live":
+            return self.handle_errors(lambda: self.send_json(live_state(self.ctl)))
+        if path in ("/admin", "/admin/"):
+            return self.redirect("/") if self.authed() else self.login_page()
+        if path == "/sw.js":
+            return self.send_static("sw.js")
+        if path in ALIASES or path.startswith("/static/"):
+            return Handler.do_GET(self)
+        if self.gate(path):
+            Handler.do_GET(self)
+
+    def do_POST(self):
+        path = urlparse(self.path).path
+        if path == "/admin/login":
+            return self.login()
+        if path == "/admin/logout":
+            return self.redirect("/admin", [("Set-Cookie", f"{auth.COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax")])
+        if self.gate(path):
+            Handler.do_POST(self)
+
+    def do_PUT(self):
+        if self.gate(urlparse(self.path).path):
+            Handler.do_PUT(self)
+
+    def login(self):
+        who = self.client()
+        n = min(int(self.headers.get("Content-Length") or 0), 4096)
+        form = parse_qs(self.rfile.read(n).decode(errors="replace"))
+        password = (form.get("password") or [""])[0]
+        st = self.ctl.settings
+        if self.limiter.blocked(who):
+            return self.login_page("Too many wrong passwords. Try again in 15 minutes.", 429)
+        if not st.get("adminPasswordHash") or not auth.verify_password(password, st["adminPasswordHash"]):
+            self.limiter.failed(who)
+            time.sleep(1)
+            self.ctl.log("warn", "Remote sign-in failed")
+            return self.login_page("That password didn't work.", 401)
+        self.limiter.succeeded(who)
+        if not st.get("sessionSecret"):
+            st["sessionSecret"] = auth.new_secret()
+            self.ctl.store.save()
+        value = auth.make_session(st["sessionSecret"])
+        self.ctl.log("info", "Remote sign-in")
+        self.redirect("/", [("Set-Cookie", f"{auth.COOKIE}={value}; Path=/; Max-Age={auth.SESSION_DAYS * 86400}; "
+                                           "HttpOnly; Secure; SameSite=Lax")])
+
+
 def main():
     ctl = make_app()
     Handler.ctl = ctl
@@ -363,7 +546,13 @@ def main():
         threading.Thread(target=ctl.run_forever, daemon=True).start()
     else:
         ctl.log("info", "Scheduler is off (SCHEDULER=off); only manual control works")
-    ctl.log("info", f"Started; bridge {ctl.host}, listening on :{port}")
+    public = os.environ.get("PUBLIC_PORT")
+    if public:
+        RemoteHandler.ctl = ctl
+        remote = ThreadingHTTPServer(("0.0.0.0", int(public)), RemoteHandler)
+        threading.Thread(target=remote.serve_forever, daemon=True).start()
+    ctl.log("info", f"Started; bridge {ctl.host}, listening on :{port}"
+                    + (f" (public entrance on :{public})" if public else ""))
     ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()
 
 

@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#07060c">
+<title>Roofline Live</title>
+<meta name="description" content="What our roofline lights are showing right now.">
+<link rel="icon" type="image/png" href="/static/favicon.png">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<style>
+:root {
+  --sky-top: #05040a; --sky-bottom: #141128; --house: #0d0b14; --edge: #1d1a28;
+  --text: #f2efe9; --muted: #a29eab; --faint: #6d6977; --accent: #ffb547;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; background: var(--sky-top); color: var(--text); }
+body {
+  font: 16px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-bottom) 55%, var(--sky-top) 100%) fixed;
+  min-height: 100vh; min-height: 100dvh;
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+}
+.wrap { max-width: 760px; margin: 0 auto; padding: 0 16px; }
+header { padding: 28px 0 0; text-align: center; }
+.kicker { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); display: inline-flex; align-items: center; gap: 8px; }
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: #ff5a4f; box-shadow: 0 0 10px #ff5a4f; animation: pulse 2s ease-in-out infinite; }
+.live-dot.off { background: var(--faint); box-shadow: none; animation: none; }
+@keyframes pulse { 50% { opacity: .35; } }
+h1 { font-size: clamp(28px, 7vw, 44px); line-height: 1.1; margin: 10px 0 6px; letter-spacing: -.02em; }
+.sub { color: var(--muted); margin: 0; min-height: 1.5em; }
+
+.scene { position: relative; margin: 18px auto 0; max-width: 760px; }
+.scene svg { display: block; width: 100%; height: auto; }
+.star { fill: #fff; }
+@media (prefers-reduced-motion: no-preference) { .star { animation: twinkle 4s ease-in-out infinite; } }
+@keyframes twinkle { 50% { opacity: .2; } }
+
+.panel { margin: 8px auto 32px; background: rgba(20, 18, 30, .72); border: 1px solid var(--edge); border-radius: 16px; padding: 16px 18px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.panel h2 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
+.row { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-top: 1px solid var(--edge); }
+.row:first-of-type { border-top: 0; }
+.row time { color: var(--muted); width: 104px; flex: none; font-variant-numeric: tabular-nums; font-size: 14px; white-space: nowrap; }
+.row .what { flex: 1; min-width: 0; }
+@media (max-width: 520px) {
+  .row { flex-direction: column; align-items: flex-start; gap: 2px; }
+  .row time { width: auto; font-size: 13px; }
+}
+.row .what b { font-weight: 600; }
+.mini { display: flex; gap: 3px; margin-top: 5px; }
+.mini i { width: 8px; height: 8px; border-radius: 50%; display: block; }
+.empty { color: var(--muted); font-size: 14px; }
+footer { text-align: center; color: var(--faint); font-size: 13px; padding: 0 0 28px; }
+footer a { color: var(--muted); }
+</style>
+</head>
+<body>
+<header class="wrap">
+  <div class="kicker"><span class="live-dot off" id="dot"></span><span id="kicker">Roofline live</span></div>
+  <h1 id="title">&nbsp;</h1>
+  <p class="sub" id="sub"></p>
+</header>
+
+<div class="scene" aria-hidden="true">
+  <svg viewBox="0 0 760 360" id="svg">
+    <defs>
+      <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="7"/></filter>
+    </defs>
+    <g id="stars"></g>
+    <!-- house -->
+    <rect x="0" y="352" width="760" height="8" fill="#0a0910"/>
+    <path d="M70 360 L70 210 L380 74 L690 210 L690 360 Z" fill="var(--house)"/>
+    <path d="M70 210 L380 74 L690 210" fill="none" stroke="var(--edge)" stroke-width="3"/>
+    <rect x="160" y="250" width="80" height="62" rx="4" fill="#191524"/>
+    <rect x="520" y="250" width="80" height="62" rx="4" fill="#191524"/>
+    <rect x="345" y="262" width="70" height="98" rx="4" fill="#191524"/>
+    <g id="glows" filter="url(#glow)"></g>
+    <g id="bulbs"></g>
+  </svg>
+</div>
+
+<main class="wrap">
+  <section class="panel">
+    <h2>Coming up</h2>
+    <div id="upcoming"><div class="empty">Loading…</div></div>
+  </section>
+</main>
+<footer class="wrap">Updated <span id="updated">—</span> · Made with <a href="https://github.com/razorfrog/everlights">everlights</a></footer>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let state = null, tz;
+
+// Colors are RRGGBB, or RRGGBBWW where WW drives the strip's white LEDs.
+function rgb(hex) {
+  const v = i => parseInt(hex.slice(i, i + 2), 16) || 0;
+  const w = hex.length === 8 ? v(6) : 0;
+  return [Math.min(255, v(0) + w), Math.min(255, v(2) + w * .93), Math.min(255, v(4) + w * .8)];
+}
+
+// --- the roofline ---
+const N = 41, bulbs = [], glows = [];
+(function build() {
+  const pts = [];
+  for (let i = 0; i < N; i++) {
+    const t = i / (N - 1);
+    pts.push(t <= .5 ? [70 + (380 - 70) * t * 2, 210 - (210 - 74) * t * 2]
+                     : [380 + (690 - 380) * (t - .5) * 2, 74 + (210 - 74) * (t - .5) * 2]);
+  }
+  const ns = "http://www.w3.org/2000/svg";
+  pts.forEach(([x, y]) => {
+    const g = document.createElementNS(ns, "circle");
+    g.setAttribute("cx", x); g.setAttribute("cy", y - 4); g.setAttribute("r", 13);
+    $("#glows").appendChild(g); glows.push(g);
+    const b = document.createElementNS(ns, "circle");
+    b.setAttribute("cx", x); b.setAttribute("cy", y - 4); b.setAttribute("r", 6.5);
+    $("#bulbs").appendChild(b); bulbs.push(b);
+  });
+  let stars = "";
+  for (let i = 0; i < 46; i++) {
+    const x = Math.random() * 760, y = Math.random() * 150, r = Math.random() * 1.3 + .3;
+    stars += `<circle class="star" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(2)}" style="animation-delay:${(Math.random() * 4).toFixed(2)}s;opacity:${(.3 + Math.random() * .6).toFixed(2)}"/>`;
+  }
+  $("#stars").innerHTML = stars;
+})();
+
+let offset = 0, tick = 0, timer = null;
+function frame() {
+  const p = (state && state.on && state.pattern) || [];
+  const fx = ((state && state.effects) || []).map(e => e.effectType);
+  tick++;
+  if (fx.includes("chase") || fx.includes("pingPong") || fx.includes("wipe")) offset++;
+  if (fx.includes("reverseChase")) offset--;
+  const fade = fx.includes("fade") ? .55 + .45 * Math.cos(tick / 9) : 1;
+  const blinkOff = (fx.includes("blink") || fx.includes("strobe")) && tick % 2 === 1;
+  bulbs.forEach((b, i) => {
+    if (!p.length) { b.setAttribute("fill", "#2a2733"); glows[i].setAttribute("fill", "transparent"); return; }
+    const c = rgb(p[((i + offset) % p.length + p.length) % p.length]);
+    let k = fade * (blinkOff ? .15 : 1);
+    if (fx.includes("twinkle") || fx.includes("random") || fx.includes("lightning")) k *= .45 + Math.random() * .55;
+    const col = `rgb(${c.map(v => Math.round(v * k)).join(",")})`;
+    b.setAttribute("fill", col);
+    glows[i].setAttribute("fill", col); glows[i].setAttribute("opacity", (.75 * k).toFixed(2));
+  });
+}
+function startAnimation() {
+  clearInterval(timer);
+  const speed = Math.max(0, Math.min(255, ((state && state.effects && state.effects[0]) || {}).value ?? 128));
+  frame();
+  if (!reduceMotion && state && state.on && (state.effects || []).length) timer = setInterval(frame, 650 - speed * 2.2);
+}
+
+// --- text ---
+const fmtTime = iso => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", timeZone: tz });
+function fmtWhen(iso) {
+  const day = x => new Date(x).toLocaleDateString("en-CA", { timeZone: tz });
+  const diff = Math.round((new Date(day(iso)) - new Date(day(new Date()))) / 864e5);
+  const label = diff === 0 ? "Today" : diff === 1 ? "Tomorrow"
+    : new Date(iso).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", timeZone: tz });
+  return `${label} ${fmtTime(iso)}`;
+}
+function fmtShort(iso) {
+  const day = x => new Date(x).toLocaleDateString("en-CA", { timeZone: tz });
+  const diff = Math.round((new Date(day(iso)) - new Date(day(new Date()))) / 864e5);
+  const label = diff === 0 ? "Today" : diff === 1 ? "Tomorrow" : diff < 7
+    ? new Date(iso).toLocaleDateString([], { weekday: "short", timeZone: tz })
+    : new Date(iso).toLocaleDateString([], { month: "short", day: "numeric", timeZone: tz });
+  return `${label} ${fmtTime(iso)}`;
+}
+function render() {
+  const s = state;
+  const next = (s.upcoming || [])[0];
+  const nextOn = (s.upcoming || []).find(u => u.action === "on");
+  $("#dot").classList.toggle("off", !s.on);
+  if (s.reachable === false) {
+    $("#kicker").textContent = "Roofline live"; $("#title").textContent = "Can't reach the lights";
+    $("#sub").textContent = "They might still be on; we just can't see them right now.";
+  } else if (s.on) {
+    $("#kicker").textContent = "Live now";
+    $("#title").textContent = s.name || "Custom colors";
+    $("#sub").textContent = next && next.action === "off" ? `Until ${fmtTime(next.at)}` : "";
+  } else {
+    $("#kicker").textContent = "Lights are off";
+    $("#title").textContent = nextOn ? `Next: ${nextOn.name}` : "No show scheduled";
+    $("#sub").textContent = nextOn ? fmtWhen(nextOn.at) : "Check back soon.";
+  }
+  const rows = (s.upcoming || []).filter(u => u.action === "on").slice(0, 6);
+  $("#upcoming").innerHTML = rows.length ? rows.map(u => {
+    const off = s.upcoming.find(x => x.action === "off" && x.at > u.at);
+    const dots = (u.pattern || []).slice(0, 14).map(c => `<i style="background:rgb(${rgb(c).join(",")})"></i>`).join("");
+    return `<div class="row"><time>${esc(fmtShort(u.at))}</time><div class="what"><b>${esc(u.name)}</b>${off ? ` until ${esc(fmtTime(off.at))}` : ""}<div class="mini">${dots}</div></div></div>`;
+  }).join("") : `<div class="empty">Nothing scheduled in the next few weeks.</div>`;
+  $("#updated").textContent = fmtTime(s.updated);
+  startAnimation();
+}
+async function load() {
+  try {
+    const r = await fetch("/api/live", { cache: "no-store" });
+    if (!r.ok) throw new Error(r.status);
+    state = await r.json(); tz = state.tz; render();
+  } catch {
+    if (!state) { state = { reachable: false, upcoming: [] }; render(); }
+  }
+}
+load();
+setInterval(load, 30000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("/sw.js").catch(() => {});
+</script>
+</body>
+</html>
