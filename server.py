@@ -240,7 +240,7 @@ class Handler(BaseHTTPRequestHandler):
                 refresh="refresh" in parse_qs(url.query))),
             "/api/schedules": lambda: self.send_json(self.ctl.store.schedules),
             "/api/log": lambda: self.send_json(list(reversed(self.ctl.store.log))),
-            "/api/settings": lambda: self.send_json(self.ctl.settings),
+            "/api/settings": lambda: self.send_json(self.public_settings()),
             "/api/history": lambda: self.send_json(history(self.ctl, parse_qs(url.query))),
             "/api/live": lambda: self.send_json(live_state(self.ctl)),
             "/api/remote": lambda: self.send_json(self.remote_settings()),
@@ -330,6 +330,10 @@ class Handler(BaseHTTPRequestHandler):
             self.send_text(str(e), 400)
         except Exception as e:
             self.send_text(f"Couldn't reach the bridge: {e}", 502)
+
+    def public_settings(self):
+        # Never the password hash, session secret or token: those stay server-side.
+        return {"ntfyUrl": self.ctl.settings.get("ntfyUrl", "")}
 
     def remote_settings(self):
         st = self.ctl.settings
@@ -426,7 +430,7 @@ class Handler(BaseHTTPRequestHandler):
             self.ctl.settings["ntfyUrl"] = url
             self.ctl.store.save()
             self.ctl.log("info", "Alert settings saved" + ("" if url else " (alerts off)"))
-            return self.send_json(self.ctl.settings)
+            return self.send_json(self.public_settings())
         if urlparse(self.path).path != "/api/schedules":
             return self.send_json({"error": "not found"}, 404)
         items = self.read_json()

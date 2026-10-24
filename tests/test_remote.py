@@ -102,6 +102,9 @@ class RemoteTests(unittest.TestCase):
         # remote access settings are LAN-only, even when signed in
         self.assertEqual(self.req(self.remote, "GET", "/api/remote", headers=jar)[0], 403)
         self.assertEqual(self.req(self.remote, "PUT", "/api/remote", '{"password":"x"}', jar)[0], 403)
+        # settings never include secrets
+        st, _, body = self.req(self.remote, "GET", "/api/settings", headers=jar)
+        self.assertEqual(set(json.loads(body)), {"ntfyUrl"})
         # Shortcut token
         st, _, body = self.req(self.remote, "GET", "/go/off", headers={"Authorization": f"Bearer {token}"})
         self.assertEqual((st, body.strip()), (200, b"Lights off."))
