@@ -190,6 +190,12 @@ dialog h3 { margin: 0; padding: 16px 18px 12px; font-size: 18px; outline: none; 
 .inline { display: flex; gap: 8px; align-items: center; }
 .inline > * { min-width: 0; }
 .inline select { flex: 1.2; } .inline input { flex: 1; }
+.mins { position: relative; flex: 0 0 86px; }
+.mins input { padding-right: 38px !important; text-align: right; }
+.mins span { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.inline select[id$="Dir"] { flex: 0 0 92px; }
+/* iOS zooms in on any field under 16px when it's tapped, which leaves the sheet panned off the left edge. */
+@media (pointer: coarse) { dialog input, dialog select { font-size: 16px; } }
 .days { display: flex; gap: 5px; }
 .days label { flex: 1; }
 .days input { display: none; }
@@ -334,9 +340,17 @@ dialog h3 { margin: 0; padding: 16px 18px 12px; font-size: 18px; outline: none; 
     <div class="field"><label for="fSeq">Pattern</label><select id="fSeq" required></select>
       <div class="strip off" id="fStrip" style="margin-top:8px"></div></div>
     <div class="field"><span class="lbl">Turn on</span>
-      <div class="inline"><select id="fStartKind"></select><input type="number" id="fStartOff" step="5" placeholder="± min"><input type="time" id="fStartTime"></div></div>
+      <div class="inline"><select id="fStartKind" aria-label="Turn on at"></select>
+        <span class="mins" id="fStartMins"><input type="number" id="fStartOff" min="0" max="600" step="5" inputmode="numeric" aria-label="Minutes from sun time"><span>min</span></span>
+        <select id="fStartDir" aria-label="Before or after"><option value="1">after</option><option value="-1">before</option></select>
+        <input type="time" id="fStartTime" aria-label="Turn on time"></div>
+      <div class="hint" id="fStartHint"></div></div>
     <div class="field"><span class="lbl">Turn off</span>
-      <div class="inline"><select id="fEndKind"></select><input type="number" id="fEndOff" step="5" placeholder="± min"><input type="time" id="fEndTime"></div></div>
+      <div class="inline"><select id="fEndKind" aria-label="Turn off at"></select>
+        <span class="mins" id="fEndMins"><input type="number" id="fEndOff" min="0" max="600" step="5" inputmode="numeric" aria-label="Minutes from sun time"><span>min</span></span>
+        <select id="fEndDir" aria-label="Before or after"><option value="1">after</option><option value="-1">before</option></select>
+        <input type="time" id="fEndTime" aria-label="Turn off time"></div>
+      <div class="hint" id="fEndHint"></div></div>
     <div class="field"><span class="lbl">Days</span><div class="days" id="fDays"></div></div>
     <div class="field">
       <label class="check"><input type="checkbox" id="fSeason"> Only between these dates each year</label>
@@ -655,23 +669,36 @@ function fillPatternSelect(selected) {
 }
 function syncAnchor(which) {
   const kind = $(`#f${which}Kind`).value;
-  $(`#f${which}Off`).style.display = kind === "time" ? "none" : "";
+  $(`#f${which}Mins`).style.display = $(`#f${which}Dir`).style.display = kind === "time" ? "none" : "";
   $(`#f${which}Time`).style.display = kind === "time" ? "" : "none";
+  anchorHint(which);
+}
+// "Sunset +15m → 6:27 PM today", from the sun times the server sends with /api/state.
+function anchorHint(which) {
+  const el = $(`#f${which}Hint`), a = getAnchor(which, true), sun = S.state && S.state.sun;
+  el.style.display = a.kind === "time" ? "none" : "";
+  if (a.kind === "time") return;
+  const base = sun && sun[a.kind];
+  el.textContent = base ? `${anchorText(a)} → ${fmtTime(new Date(Date.parse(base) + a.offset * 60000).toISOString())} today`
+    : anchorText(a);
 }
 function setAnchor(which, a) {
   $(`#f${which}Kind`).value = a.kind;
-  $(`#f${which}Off`).value = a.kind === "time" ? "" : (a.offset || 0);
+  const off = a.kind === "time" ? 0 : (a.offset || 0);
+  $(`#f${which}Off`).value = Math.abs(off);
+  $(`#f${which}Dir`).value = off < 0 ? "-1" : "1";
   $(`#f${which}Time`).value = a.kind === "time" ? a.time : "";
   syncAnchor(which);
 }
-function getAnchor(which) {
+function getAnchor(which, loose) {
   const kind = $(`#f${which}Kind`).value;
   if (kind === "time") {
     const t = $(`#f${which}Time`).value;
-    if (!t) throw new Error(`Pick a ${which === "Start" ? "start" : "stop"} time`);
+    if (!t && !loose) throw new Error(`Pick a ${which === "Start" ? "start" : "stop"} time`);
     return { kind, time: t };
   }
-  return { kind, offset: parseInt($(`#f${which}Off`).value || "0", 10) };
+  const mins = Math.abs(parseInt($(`#f${which}Off`).value || "0", 10)) || 0;
+  return { kind, offset: mins * +$(`#f${which}Dir`).value };
 }
 function syncSeason() { $("#seasonRow").style.display = $("#fSeason").checked ? "" : "none"; }
 function openDialog(i) {
@@ -701,8 +728,11 @@ $("#fSeq").addEventListener("change", () => {
   paintStrip($("#fStrip"), seq);
   if (!$("#fName").value && seq) $("#fName").value = seq.alias;
 });
-$("#fStartKind").addEventListener("change", () => syncAnchor("Start"));
-$("#fEndKind").addEventListener("change", () => syncAnchor("End"));
+for (const w of ["Start", "End"]) {
+  $(`#f${w}Kind`).addEventListener("change", () => syncAnchor(w));
+  $(`#f${w}Off`).addEventListener("input", () => anchorHint(w));
+  $(`#f${w}Dir`).addEventListener("change", () => anchorHint(w));
+}
 $("#fSeason").addEventListener("change", syncSeason);
 $("#fCancel").addEventListener("click", () => $("#dlg").close());
 // Keep the sheet above the on-screen keyboard (iOS doesn't resize the layout viewport).

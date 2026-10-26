@@ -259,6 +259,8 @@ class Handler(BaseHTTPRequestHandler):
             "scheduler": ctl.status(),
             "upcoming": scheduler.upcoming(ctl.store.schedules, now, ctl.cfg),
         }
+        rise, set_ = scheduler.sun_times(now.date(), ctl.cfg.lat, ctl.cfg.lon)
+        out["sun"] = {"sunrise": rise.isoformat(), "sunset": set_.isoformat()}  # for the schedule form's preview
         key, s = scheduler.desired(ctl.store.schedules, now, ctl.cfg)
         out["desired"] = None if key is None else {"on": bool(s), "name": s["name"] if s else None}
         try:
