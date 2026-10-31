@@ -118,6 +118,11 @@ It adds:
 - **Binary sensors:** bridge answering, and (off by default) bridge reaching the
   EverLights cloud.
 
+<img src="docs/screenshots/home-assistant.jpg" width="300" alt="A Home Assistant dashboard with the roofline light, pattern buttons, the next scheduled change and bridge health">
+
+An example dashboard: the roofline light, buttons that play saved patterns, and the
+schedule and health sensors. (Power draw comes from a separate smart plug.)
+
 To install, copy `custom_components/everlights_local` into your Home Assistant
 `config/custom_components/` folder (or add this repo to HACS as a custom repository),
 restart Home Assistant, then add **EverLights Local** under Settings → Devices &
