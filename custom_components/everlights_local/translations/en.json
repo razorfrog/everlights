@@ -1,0 +1,31 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "EverLights app",
+        "description": "The address of the everlights app (not the bridge), e.g. http://192.168.1.20:8080. Leave the token empty for the home port; for the remote (tunnel) address, paste the Shortcut token from the app's Health tab.",
+        "data": {"url": "App address", "token": "Shortcut token (optional)"}
+      }
+    },
+    "error": {
+      "cannot_connect": "Couldn't reach the app at that address.",
+      "invalid_auth": "The app asked for a token. Check the Shortcut token, or use the home port.",
+      "not_everlights": "Something answered, but it isn't the everlights app."
+    },
+    "abort": {"already_configured": "This bridge is already set up."}
+  },
+  "entity": {
+    "binary_sensor": {
+      "bridge_online": {"name": "Bridge"},
+      "bridge_cloud": {"name": "EverLights cloud"}
+    },
+    "sensor": {
+      "next_change": {"name": "Next scheduled change"},
+      "scheduled_pattern": {"name": "Scheduled now"},
+      "rssi": {"name": "Controller signal"},
+      "bridge_restarts": {"name": "Bridge restarts"},
+      "controller_restarts": {"name": "Controller restarts"},
+      "firmware": {"name": "Bridge firmware"}
+    }
+  }
+}

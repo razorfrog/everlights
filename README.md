@@ -18,7 +18,8 @@ It's built for phones first: add it to your home screen and it opens like an app
 >
 > **Firmware B5010 (October 30, 2026) may break it.** This app is tested on bridge
 > firmware B4042. Another local app [stopped working after B5010](https://github.com/CWSpear/everlights/issues/3),
-> and what changed isn't known yet. See [Holding off firmware updates](#holding-off-firmware-updates).
+> where the zone's pattern endpoint (`/v1/zones/{serial}/sequence`) now answers
+> `410 Gone` with `"cloud": true`: control appears to have moved to the cloud. See [Holding off firmware updates](#holding-off-firmware-updates).
 
 ## Features
 
@@ -38,6 +39,8 @@ It's built for phones first: add it to your home screen and it opens like an app
 - **Push alerts** via [ntfy](https://ntfy.sh): get a notification on your phone when a
   scheduled change gives up or only worked after retries, when the bridge stops
   answering (and when it's back), or when the bridge or controller restarts.
+- **Home Assistant integration:** a light with your patterns as effects, plus sensors.
+  See [Home Assistant](#home-assistant).
 - **Siri Shortcuts links:** `/go/on`, `/go/off`, `/go/play?name=Candy%20Corn`.
 - **Home screen web app** for iOS.
 - **CLI** (`everlights.py`) for scripting and poking at the bridge.
@@ -98,6 +101,29 @@ reachable from the internet.
 
 **Step-by-step setup: [docs/remote-access.md](docs/remote-access.md).**
 
+## Home Assistant
+
+`custom_components/everlights_local/` is a Home Assistant integration that talks to this
+app (not to the bridge), so the app keeps doing the scheduling and confirming. (Home
+Assistant's built-in EverLights integration only works with the older controllers and
+their `/status/get` API.)
+
+It adds:
+
+- **A light** for the roofline: on, off, any saved pattern as an effect, or a solid color.
+  A change from Home Assistant holds until the app's next scheduled change, the same as a
+  change made in the app.
+- **Sensors:** next scheduled change (with the pattern), what's scheduled now, the
+  controller's signal strength, bridge and controller restarts, and bridge firmware.
+- **Binary sensors:** bridge answering, and (off by default) bridge reaching the
+  EverLights cloud.
+
+To install, copy `custom_components/everlights_local` into your Home Assistant
+`config/custom_components/` folder (or add this repo to HACS as a custom repository),
+restart Home Assistant, then add **EverLights Local** under Settings → Devices &
+services. Give it the app's home address, like `http://192.168.1.20:8080`. Only if you
+use the remote (tunnel) address, also paste the Shortcut token from the app's Health tab.
+
 ## CLI
 
 ```bash
@@ -136,21 +162,29 @@ bridge firmware B4042, radio R3052, zone controller N3063:
 ## Holding off firmware updates
 
 The bridge updates itself from the EverLights cloud, and there's no setting to turn that
-off. If your bridge is still on a firmware version this app works with, you can stop
-updates by blocking the bridge from the internet at your router. Everything in this app
-keeps working, since it only talks to the bridge on your home network. What you lose:
-the EverLights phone app away from home, and the bridge's cloud check-ins (use the
-[remote access](docs/remote-access.md) setup instead).
+off. If your bridge is still on a firmware version this app works with, you can block
+just the update server at your router. The bridge downloads firmware from
+`update.myeverlights.com` (also `fw.myeverlights.com`), separate from the cloud
+connection it uses day to day (`mqtt.myeverlights.com` on port 1883 and
+`telemetry-v2.myeverlights.com`).
+
+**Don't block the bridge from the internet entirely.** I tried: without its cloud
+connection the bridge freezes for 5–6 seconds every minute or two while it retries,
+and its watchdog restarts it after about 20 minutes. Blocking only the update server
+leaves it stable and online.
 
 What I did on a UniFi gateway:
 
-1. Give the bridge a fixed IP (a DHCP reservation), so the rule can't miss it.
-2. Add an "internet out" (WAN_OUT) rule that allows UDP ports 53 and 123 from the
-   bridge (DNS and NTP, so it keeps the right time), and below it one that drops
-   everything else from the bridge.
-3. Check `GET /v1`: within a few minutes `serverReachable` turns `false`.
+1. Give the bridge a fixed IP (a DHCP reservation).
+2. Add an "internet out" (WAN_OUT) firewall rule that rejects traffic from the bridge
+   to the update server's address (`dig +short update.myeverlights.com`).
+3. Add local DNS records pointing `update.myeverlights.com` and `fw.myeverlights.com`
+   to `0.0.0.0`, in case that address changes.
+4. Check `GET /v1`: `serverReachable` stays `true` and `firmwareVersion` stays put.
 
-To let it update later, turn the rules off. Back up the SD card first (see below).
+This is a best guess from the hostnames, not something I've seen work against a real
+update yet. To let it update later, remove the rule and the DNS records, and back up
+the SD card first (see below).
 
 ## Notes on the bridge's SD card
 
