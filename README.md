@@ -15,6 +15,10 @@ It's built for phones first: add it to your home screen and it opens like an app
 
 > Not affiliated with or endorsed by EverLights. It uses the bridge's undocumented
 > local API, which could change with any firmware update.
+>
+> **Firmware B5010 (October 30, 2026) may break it.** This app is tested on bridge
+> firmware B4042. Another local app [stopped working after B5010](https://github.com/CWSpear/everlights/issues/3),
+> and what changed isn't known yet. See [Holding off firmware updates](#holding-off-firmware-updates).
 
 ## Features
 
@@ -128,6 +132,25 @@ bridge firmware B4042, radio R3052, zone controller N3063:
 - There's no brightness endpoint; use darker colors.
 - Reading a zone's sequence back only shows what the bridge *accepted*, not what the
   roofline controller received over the radio. That's why the scheduler re-sends.
+
+## Holding off firmware updates
+
+The bridge updates itself from the EverLights cloud, and there's no setting to turn that
+off. If your bridge is still on a firmware version this app works with, you can stop
+updates by blocking the bridge from the internet at your router. Everything in this app
+keeps working, since it only talks to the bridge on your home network. What you lose:
+the EverLights phone app away from home, and the bridge's cloud check-ins (use the
+[remote access](docs/remote-access.md) setup instead).
+
+What I did on a UniFi gateway:
+
+1. Give the bridge a fixed IP (a DHCP reservation), so the rule can't miss it.
+2. Add an "internet out" (WAN_OUT) rule that allows UDP ports 53 and 123 from the
+   bridge (DNS and NTP, so it keeps the right time), and below it one that drops
+   everything else from the bridge.
+3. Check `GET /v1`: within a few minutes `serverReachable` turns `false`.
+
+To let it update later, turn the rules off. Back up the SD card first (see below).
 
 ## Notes on the bridge's SD card
 
