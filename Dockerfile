@@ -1,7 +1,7 @@
 FROM python:3.12-slim
 RUN pip install --no-cache-dir tzdata
 WORKDIR /app
-COPY everlights.py scheduler.py server.py ./
+COPY auth.py everlights.py scheduler.py server.py ./
 COPY static ./static
 ENV DATA_DIR=/data PORT=8080 PYTHONUNBUFFERED=1
 VOLUME /data
